@@ -8,9 +8,13 @@
     "build": "npm exec tsc -- && npm exec vite -- build",
     "preview": "vite preview",
     "predeploy": "npm run build && node -e \"const fs = require('fs'); fs.copyFileSync('CNAME', 'dist/CNAME');\"",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "process-critters": "node scripts/process-critters.mjs"
   },
   "dependencies": {
+    "@imgly/background-removal-node": "^1.4.5",
+    "@napi-rs/canvas": "^1.0.0",
+    "@supabase/supabase-js": "^2.106.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
