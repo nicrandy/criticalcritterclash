@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { critters, rarityColor, rarityGlow, type Critter } from './critters';
 import { ruleSets } from './ruleSets';
 import { supabase, formatEventDate, type Event } from './supabaseClient';
+import { BattleGame } from './BattleGame';
 import logo from '../images/product_images/logo.png';
 
 // ── Image globs ───────────────────────────────────────────────────────────────
@@ -108,12 +109,12 @@ function App() {
   const [statCritter,  setStatCritter] = useState<Critter | null>(null);
   const [events,       setEvents]      = useState<Event[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
+  const [gameOpen,     setGameOpen]    = useState(false);
 
   useEffect(() => {
     supabase
       .from('events')
       .select('*')
-      .eq('site', 'criticalcritter')
       .order('start_date', { ascending: true })
       .then(({ data, error }) => {
         if (!error && data) setEvents(data as Event[]);
@@ -159,11 +160,9 @@ function App() {
             Build your party.<br />
             Battle for glory.
           </p>
-          <div className="hero-actions">
-            <button className="btn-gold"    onClick={() => scrollTo('critters', 'critters')}>Meet the Critters</button>
-            <button className="btn-outline" onClick={() => scrollTo('rules',    'rules')}>Learn to Play</button>
-          </div>
-
+          <button className="btn-gold hero-battle-btn" onClick={() => setGameOpen(true)}>
+            ⚔️ Enter the Arena
+          </button>
         </div>
         <div className="hero-fade" aria-hidden="true" />
       </section>
@@ -315,6 +314,7 @@ function App() {
       {/* ── LIGHTBOXES ── */}
       {photoOpen   && <PhotoLightbox src={photoOpen} onClose={() => setPhotoOpen(null)} />}
       {statCritter && <StatLightbox critter={statCritter} onClose={() => setStatCritter(null)} />}
+      {gameOpen    && <BattleGame onClose={() => setGameOpen(false)} />}
     </div>
   );
 }
