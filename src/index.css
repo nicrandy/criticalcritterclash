@@ -944,15 +944,43 @@ body {
 .fg-badges    { display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap; }
 .fg-rarity    { font-size:0.62rem; letter-spacing:0.08em; text-transform:capitalize; }
 .fg-align     { font-size:0.62rem; }
-.fg-hp-badge  { font-family:var(--font-heading); font-size:1rem; font-weight:700; color:var(--align-color,var(--gold)); white-space:nowrap; flex-shrink:0; }
-.fg-hp-max    { font-size:0.68rem; color:var(--text-dim); font-weight:400; }
+.fg-hp-badge  { display:flex; align-items:baseline; gap:0.08rem; white-space:nowrap; flex-shrink:0; }
+.fg-hp-cur    { font-family:var(--font-heading); font-size:1rem; font-weight:700; color:var(--align-color,var(--gold)); }
+.fg-hp-sep    { font-family:var(--font-heading); font-size:0.72rem; color:var(--text-dim); margin:0 0.05rem; }
+.fg-hp-max    { font-family:var(--font-heading); font-size:1rem; font-weight:700; color:var(--text-bright); }
+.fg-hp-lbl    { font-family:var(--font-heading); font-size:0.6rem; color:var(--text-dim); margin-left:0.15rem; align-self:flex-end; padding-bottom:0.08rem; }
 
 /* HP bar */
 .hp-bar-track { height:6px; background:rgba(255,255,255,0.07); border-radius:999px; overflow:hidden; }
 .hp-bar-fill  { height:100%; border-radius:999px; transition:width 0.6s ease, background 0.5s; }
 
+/* Shield bar — blue, above HP bar */
+.fg-shield-row  {
+  display:grid; grid-template-columns:0.9rem 1fr auto;
+  align-items:center; gap:0.35rem; margin-bottom:0.15rem;
+}
+.fg-shield-icon { font-size:0.68rem; line-height:1; }
+.fg-shield-track {
+  height:5px; background:rgba(96,165,250,0.12);
+  border-radius:999px; overflow:hidden;
+  border:1px solid rgba(96,165,250,0.3);
+}
+.fg-shield-fill {
+  height:100%; border-radius:999px;
+  background:linear-gradient(90deg,#3b82f6,#93c5fd);
+  box-shadow:0 0 6px rgba(59,130,246,0.5);
+  transition:width 0.4s ease;
+}
+.fg-shield-val {
+  font-family:var(--font-heading); font-size:0.68rem; font-weight:700;
+  color:#93c5fd; white-space:nowrap;
+}
+.fg-shield-max {
+  font-size:0.58rem; font-weight:400; color:rgba(147,197,253,0.55);
+}
+
 /* Stats row — horizontal chips */
-.fg-stats-row  { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.1rem; }
+.fg-stats-row  { display:flex; gap:0.5rem; flex-wrap:nowrap; margin-top:0.1rem; overflow:hidden; }
 .fg-stat-chip  { display:flex; align-items:center; gap:0.25rem; padding:0.15rem 0.5rem; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:6px; }
 .fg-sc-icon    { font-size:0.78rem; line-height:1; }
 .fg-sc-lbl     { font-size:0.58rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); }
@@ -1050,6 +1078,9 @@ body {
 .bact-icon  { font-size:1.5rem; line-height:1; }
 .bact-label { font-family:var(--font-heading); font-size:0.75rem; letter-spacing:0.08em; text-transform:uppercase; }
 .bact-desc  { font-size:0.62rem; color:var(--text-dim); text-align:center; line-height:1.3; }
+.bact-uses  { font-size:0.6rem; color:var(--text-dim); letter-spacing:0.05em; margin-top:0.1rem; }
+.bg-action-btn--dim { opacity:0.4; cursor:not-allowed !important; }
+.bg-action-btn--dim:hover { transform:none !important; box-shadow:none !important; background:transparent !important; border-color:var(--border) !important; }
 
 /* Roll area (after action chosen) */
 .bg-roll-area {
@@ -1083,6 +1114,103 @@ body {
   display:flex; flex-direction:column; gap:0.3rem;
 }
 .bg-result-btns { display:flex; gap:0.75rem; flex-wrap:wrap; justify-content:center; }
+
+/* ── Round + Stage badge (top-left pill) ── */
+.bg-round-badge {
+  position:absolute; top:0.7rem; left:0.7rem;
+  display:flex; align-items:center; gap:0.35rem;
+  padding:0.22rem 0.65rem; border-radius:999px;
+  border:1px solid var(--gold-dim); background:var(--bg-deep);
+  font-family:var(--font-heading); font-size:0.62rem; font-weight:700;
+  z-index:5; pointer-events:none; white-space:nowrap;
+}
+.bg-badge-rnd { color:var(--gold); }
+.bg-badge-dot { color:var(--text-dim); font-weight:400; }
+.bg-badge-stg { color:var(--text-mid); }
+
+/* ── Section label (above alignment / difficulty rows) ── */
+.bg-section-lbl {
+  font-family:var(--font-heading); font-size:0.63rem;
+  letter-spacing:0.22em; text-transform:uppercase; color:var(--text-dim);
+}
+
+/* ── Difficulty row + buttons ── */
+.bg-diff-row {
+  display:flex; gap:0.6rem; width:100%; max-width:480px;
+  flex-wrap:wrap; justify-content:center;
+}
+.bg-diff-btn {
+  flex:1; min-width:110px;
+  display:flex; flex-direction:column; align-items:center; gap:0.25rem;
+  padding:0.85rem 0.6rem; border-radius:14px;
+  border:1px solid var(--border); background:transparent;
+  cursor:pointer; transition:all 0.25s;
+}
+.bg-diff-btn--on { background:rgba(255,255,255,0.04); }
+.bdb-icon   { font-size:1.4rem; line-height:1; }
+.bdb-rarity {
+  font-family:var(--font-heading); font-size:0.82rem;
+  letter-spacing:0.08em; text-transform:uppercase;
+  color:var(--text-mid); transition:color 0.2s;
+}
+.bdb-diff {
+  font-family:var(--font-heading); font-size:0.6rem;
+  letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
+}
+.bdb-desc { font-size:0.65rem; color:var(--text-dim); line-height:1.3; }
+
+/* ── Enchant phase ── */
+.bg-enchant-btn { padding:0.75rem 2.5rem !important; font-size:0.95rem !important; }
+
+.bg-enchant-stats {
+  display:flex; flex-direction:column; gap:0.55rem;
+  width:100%; max-width:340px;
+  background:var(--bg-deep); border:1px solid var(--border);
+  border-radius:12px; padding:1rem 1.25rem;
+}
+.bg-es-item {
+  display:grid; grid-template-columns:1.4rem 2.5rem 2rem 1fr;
+  align-items:center; gap:0.5rem;
+}
+.bg-es-icon { font-size:0.95rem; line-height:1; }
+.bg-es-lbl {
+  font-family:var(--font-heading); font-size:0.63rem;
+  letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
+}
+.bg-es-val { font-family:var(--font-heading); font-size:0.9rem; font-weight:700; text-align:right; }
+.bg-es-bar  { height:6px; background:rgba(255,255,255,0.07); border-radius:999px; overflow:hidden; }
+.bg-es-fill { height:100%; border-radius:999px; transition:width 0.5s ease; }
+.bg-es-hp {
+  display:flex; align-items:center; justify-content:space-between;
+  padding-top:0.5rem; margin-top:0.25rem; border-top:1px solid var(--border);
+  font-family:var(--font-heading); font-size:0.72rem;
+  letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim);
+}
+.bg-enchant-actions { display:flex; gap:0.65rem; flex-wrap:wrap; justify-content:center; }
+
+/* ── Back link button ── */
+.bg-back-btn {
+  background:none; border:none; color:var(--text-dim);
+  font-family:var(--font-heading); font-size:0.72rem; letter-spacing:0.1em;
+  cursor:pointer; padding:0.2rem 0.5rem; transition:color 0.2s; margin-top:0.25rem;
+}
+.bg-back-btn:hover { color:var(--text-mid); }
+
+/* ── Allocation die slot + × undo ── */
+.bg-die-slot  { display:flex; flex-direction:column; align-items:center; gap:0.35rem; }
+.bg-die-clear {
+  font-family:var(--font-heading); font-size:0.65rem; letter-spacing:0.05em;
+  background:var(--bg-deep); border:1px solid var(--border-light);
+  border-radius:6px; color:var(--text-dim);
+  cursor:pointer; padding:0.2rem 0.5rem; transition:all 0.15s; white-space:nowrap;
+}
+.bg-die-clear:hover { border-color:#f87171; color:#f87171; }
+
+/* ── Allocation footer (Reset + Begin Battle) ── */
+.bg-alloc-footer {
+  display:flex; gap:0.75rem; flex-wrap:wrap; justify-content:center;
+  width:100%; max-width:400px;
+}
 
 /* ── EVENTS ───────────────────────────────────────── */
 .events-section { background: var(--bg-mid); }
@@ -1335,4 +1463,26 @@ body {
   .lightbox-panel { grid-template-columns: 1fr; }
   .lightbox-portrait { max-height: 260px; }
   .stat-explainer { padding: 1.5rem; }
+
+  /* Battle game — compact on mobile */
+  .bg-modal { padding: 2rem 0.85rem 1.5rem; max-height: 97vh; }
+  .bg-title { font-size: 1.55rem; }
+  .bg-align-row { gap: 0.6rem; }
+  .bg-diff-row { gap: 0.4rem; }
+  .bg-diff-btn { min-width: 90px; padding: 0.65rem 0.4rem; }
+  .bdb-desc { display: none; }
+  .fg-card { padding: 0.55rem 0.75rem; gap: 0.6rem; }
+  .fg-portrait { width: 42px; height: 42px; font-size: 1.6rem; }
+  .fg-hp-badge { font-size: 0.85rem; }
+  .fg-name { font-size: 0.75rem; }
+  .fg-stat-chip { padding: 0.1rem 0.35rem; gap: 0.15rem; }
+  .fg-sc-val { font-size: 0.72rem; }
+  .bg-log { height: 130px; }
+  .bg-action-btn { padding: 0.6rem 0.35rem; }
+  .bact-icon { font-size: 1.2rem; }
+  .bact-label { font-size: 0.68rem; }
+  .bg-d6.bg-d6--lg { width: 82px; height: 82px; }
+  .bg-enchant-stats { max-width: 100%; }
+  .bg-alloc-footer { flex-direction: column; align-items: stretch; max-width: 280px; }
+  .bg-alloc-footer .bg-cta { text-align: center; }
 }
