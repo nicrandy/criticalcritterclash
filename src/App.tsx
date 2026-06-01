@@ -75,7 +75,7 @@ function StatLightbox({ critter, onClose }: { critter: Critter; onClose: () => v
           <div className="lightbox-stats">
             <StatBar label="Strength" value={critter.strength} icon="👊" rarity={critter.rarity} />
             <StatBar label="Health"   value={critter.health}   icon="❤️" rarity={critter.rarity} />
-            <StatBar label="Stamina"  value={critter.stamina}  icon="🥾" rarity={critter.rarity} />
+            <StatBar label="Stamina"  value={critter.stamina}  icon="🛡️" rarity={critter.rarity} />
           </div>
           <div className="lightbox-total">
             <span>Total Power</span>
@@ -267,7 +267,7 @@ function App() {
             {[
               { icon: '👊', name: 'Strength', desc: 'Added to your attack roll. Higher = harder hits.' },
               { icon: '❤️', name: 'Health',   desc: 'Life total × 2 = HP. Reach 0 and your Critter is defeated.' },
-              { icon: '🥾', name: 'Stamina',  desc: 'Actions per turn and damage reduction on defense rolls.' },
+              { icon: '🛡️', name: 'Stamina',  desc: 'Passive damage reduction each round, and your shield value when you choose to Defend.' },
             ].map(s => (
               <div key={s.name} className="stat-block">
                 <span className="stat-icon">{s.icon}</span>

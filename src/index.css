@@ -741,10 +741,10 @@ body {
 /* ── HERO BATTLE BUTTON ───────────────────────────── */
 .hero-battle-btn { margin-top: 2rem; font-size: 1rem; padding: 0.75rem 2.5rem; letter-spacing: 0.12em; }
 
-/* ── D20 SVG SHARED ──────────────────────────────── */
-.d20-outer { fill: var(--bg-deep); stroke: var(--gold); stroke-width: 2.5; }
-.d20-inner { fill: none; stroke: var(--gold-dim); stroke-width: 1.2; opacity: 0.6; }
-.d20-num   { font-family: var(--font-heading); font-size: 28px; font-weight: 900; fill: var(--gold); }
+/* ── D6 SVG SHARED ───────────────────────────────── */
+.d6-face { fill: var(--bg-deep); stroke: var(--gold); stroke-width: 2.5; }
+.d6-dot  { fill: var(--gold); }
+.d6-q    { font-family: var(--font-heading); font-size: 42px; font-weight: 900; fill: var(--gold-dim); }
 
 /* ── BATTLE GAME OVERLAY ─────────────────────────── */
 .bg-overlay {
@@ -838,23 +838,27 @@ body {
 
 /* ── Dice ── */
 .bg-dice-row { display:flex; gap:1rem; justify-content:center; flex-wrap:wrap; margin:0.5rem 0; }
-.bg-d20 {
-  width:88px; height:102px; position:relative;
-  background:transparent; border:none; padding:0; cursor:default;
-  filter:drop-shadow(0 0 10px rgba(201,168,76,0.3));
-  transition:filter 0.2s, transform 0.15s;
-}
-.bg-d20 svg { width:100%; height:100%; display:block; }
-.bg-d20--spin { animation:d20Shake 0.1s linear infinite; filter:drop-shadow(0 0 22px rgba(201,168,76,0.8)); }
-.bg-d20--sel  { filter:drop-shadow(0 0 22px var(--align-glow,rgba(201,168,76,0.9))); transform:scale(1.1) translateY(-4px); }
-.bg-d20--used { opacity:0.3; cursor:not-allowed; }
-.bg-d20:not(.bg-d20--used):not(.bg-d20--spin)[onClick] { cursor:pointer; }
-.bg-d20-check { position:absolute; top:4px; right:4px; font-size:0.6rem; color:var(--gold); background:var(--bg-deep); border-radius:50%; width:15px; height:15px; display:flex; align-items:center; justify-content:center; border:1px solid var(--gold-dim); }
 
-@keyframes d20Shake {
-  0%   { transform: rotate(-6deg) scale(1.06); }
-  50%  { transform: rotate(6deg)  scale(0.95); }
-  100% { transform: rotate(-6deg) scale(1.06); }
+.bg-d6 {
+  width:80px; height:80px; position:relative;
+  background:transparent; border:none; padding:0; cursor:default;
+  filter:drop-shadow(0 0 10px rgba(201,168,76,0.25));
+  transition:filter 0.2s, transform 0.15s;
+  flex-shrink:0;
+}
+.bg-d6.bg-d6--lg  { width:100px; height:100px; }
+.bg-d6 svg        { width:100%; height:100%; display:block; }
+.bg-d6--clickable { cursor:pointer; }
+.bg-d6--clickable:hover { filter:drop-shadow(0 0 18px rgba(201,168,76,0.6)); transform:scale(1.06) translateY(-3px); }
+.bg-d6--spin  { animation:d6Spin 0.12s linear infinite; filter:drop-shadow(0 0 22px rgba(201,168,76,0.8)); cursor:not-allowed; }
+.bg-d6--sel   { filter:drop-shadow(0 0 22px var(--align-glow,rgba(201,168,76,0.9))); transform:scale(1.1) translateY(-4px); }
+.bg-d6--used  { opacity:0.28; cursor:not-allowed; }
+.bg-d6-check  { position:absolute; top:3px; right:3px; font-size:0.6rem; color:var(--gold); background:var(--bg-deep); border-radius:50%; width:15px; height:15px; display:flex; align-items:center; justify-content:center; border:1px solid var(--gold-dim); }
+
+@keyframes d6Spin {
+  0%   { transform: rotate(-10deg) scale(1.08); }
+  50%  { transform: rotate(10deg)  scale(0.93); }
+  100% { transform: rotate(-10deg) scale(1.08); }
 }
 
 /* ── Allocation buttons ── */
@@ -997,15 +1001,59 @@ body {
 .bl-hit.bl-player { color:#93c5fd; }
 .bl-hit.bl-ai     { color:#fca5a5; }
 .bl-critical  { color:#fde68a; font-weight:600; }
-.bl-fumble    { color:#9ca3af; font-style:italic; }
 .bl-block     { color:#6ee7b7; }
+.bl-heal.bl-player { color:#4ade80; }
+.bl-heal.bl-ai     { color:#86efac; font-style:italic; }
 .bl-thinking  { color:var(--text-dim); font-style:italic; animation:logPulse 0.7s ease-in-out infinite; }
 @keyframes logPulse { 0%,100%{opacity:0.3;} 50%{opacity:1;} }
 
-/* ── Battle actions ── */
-.bg-actions { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding-top:0.25rem; }
-.bg-round-lbl { font-family:var(--font-heading); font-size:0.72rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim); }
-.bg-attack-btn { min-width:140px; font-size:0.95rem; }
+/* ── Battle actions area ── */
+.bg-actions-area {
+  display:flex; flex-direction:column; align-items:center; gap:0.65rem; padding-top:0.25rem;
+}
+.bg-round-lbl {
+  font-family:var(--font-heading); font-size:0.72rem; letter-spacing:0.12em;
+  text-transform:uppercase; color:var(--text-dim);
+}
+
+/* Three action buttons */
+.bg-action-btns { display:flex; gap:0.65rem; justify-content:center; flex-wrap:wrap; width:100%; }
+.bg-action-btn {
+  flex:1; min-width:80px; max-width:130px;
+  display:flex; flex-direction:column; align-items:center; gap:0.3rem;
+  padding:0.75rem 0.5rem;
+  background:var(--bg-deep); border:1px solid var(--border); border-radius:12px;
+  color:var(--text-mid); cursor:pointer; transition:all 0.2s;
+}
+.bg-action-btn:hover {
+  border-color:var(--align-color,var(--gold-dim));
+  color:var(--text-bright);
+  background:rgba(255,255,255,0.04);
+  box-shadow:0 0 16px var(--align-glow,rgba(201,168,76,0.2));
+  transform:translateY(-2px);
+}
+.bact-icon  { font-size:1.5rem; line-height:1; }
+.bact-label { font-family:var(--font-heading); font-size:0.75rem; letter-spacing:0.08em; text-transform:uppercase; }
+.bact-desc  { font-size:0.62rem; color:var(--text-dim); text-align:center; line-height:1.3; }
+
+/* Roll area (after action chosen) */
+.bg-roll-area {
+  display:flex; flex-direction:column; align-items:center; gap:0.65rem; width:100%;
+}
+.bg-roll-hint { font-size:0.88rem; color:var(--text-mid); text-align:center; margin:0; }
+.bg-roll-hint strong { color:var(--text-bright); }
+
+/* AI reveal strip */
+.bg-ai-reveal {
+  display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; justify-content:center;
+  padding:0.5rem 1.25rem;
+  background:var(--bg-deep); border:1px solid var(--border); border-radius:8px;
+  width:100%;
+}
+.bg-ai-reveal-lbl  { font-size:0.7rem; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-dim); }
+.bg-ai-reveal-act  { font-family:var(--font-heading); font-size:0.88rem; color:var(--text-bright); }
+.bg-ai-reveal-roll { color:var(--gold); }
+.bg-ai-reveal-you  { font-size:0.78rem; color:var(--text-dim); margin-left:auto; }
 
 /* ── Result ── */
 .bg-result    { gap:1rem; }
