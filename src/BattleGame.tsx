@@ -84,9 +84,9 @@ const ACTION_CFG: Record<Action, { icon: string; label: string; desc: string }> 
 const IDLE_SPOTLIGHT: Spotlight = { title: '', detail: '', color: '#888', type: 'idle' };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const randInt    = (a: number, b: number) => Math.floor(Math.random() * (b - a + 1)) + a;
-const rollD6     = () => randInt(1, 6);
-const calcMaxHp  = (health: number) => health * 4 + 5;
+const randInt     = (a: number, b: number) => Math.floor(Math.random() * (b - a + 1)) + a;
+const rollD6      = () => randInt(1, 6);
+const calcMaxHp   = (health: number) => health * 4 + 5;
 const calcPassive = (f: Fighter) => Math.floor(f.final.stamina / 3);
 let _uid = 0;
 const uid  = () => ++_uid;
@@ -147,7 +147,7 @@ function D6Die({ value, spinning, selected, used, onClick, large }: {
         onClick && !used && !spinning ? 'bg-d6--clickable' : '',
       ].filter(Boolean).join(' ')}
       onClick={onClick}
-      disabled={used || (!onClick)}
+      disabled={used || !onClick}
     >
       <svg viewBox="0 0 100 100">
         <rect x="6" y="6" width="88" height="88" rx="18" className="d6-face" />
@@ -174,17 +174,17 @@ function HPBar({ hp, maxHp }: { hp: number; maxHp: number }) {
   );
 }
 
-// ─── FighterCard ──────────────────────────────────────────────────────────────
+// ─── FighterCard — horizontal layout ─────────────────────────────────────────
 function FighterCard({ fighter, label, animStep, side, floatDmg }: {
   fighter: Fighter; label: string; animStep: AnimStep;
   side: 'player' | 'ai'; floatDmg: FloatDmg | null;
 }) {
-  const attacking  = (side === 'player' && animStep === 'p-act') || (side === 'ai' && animStep === 'a-act');
-  const hit        = (side === 'ai' && animStep === 'a-hit')     || (side === 'player' && animStep === 'p-hit');
-  const ac         = ALIGN_CFG[fighter.alignment];
-  const portrait   = PORTRAITS[fighter.alignment][fighter.rarity];
-  const rc         = rarityColor[fighter.rarity];
-  const showFloat  = floatDmg && floatDmg.side === side;
+  const attacking = (side === 'player' && animStep === 'p-act') || (side === 'ai' && animStep === 'a-act');
+  const hit       = (side === 'ai' && animStep === 'a-hit')     || (side === 'player' && animStep === 'p-hit');
+  const ac        = ALIGN_CFG[fighter.alignment];
+  const portrait  = PORTRAITS[fighter.alignment][fighter.rarity];
+  const rc        = rarityColor[fighter.rarity];
+  const showFloat = floatDmg && floatDmg.side === side;
 
   return (
     <div
@@ -192,67 +192,66 @@ function FighterCard({ fighter, label, animStep, side, floatDmg }: {
       style={{ '--align-color': ac.color, '--align-glow': ac.glow } as React.CSSProperties}
     >
       {showFloat && (
-        <span
-          key={floatDmg!.id}
-          className="fg-float-dmg"
-          style={{ color: floatDmg!.color }}
-        >
+        <span key={floatDmg!.id} className="fg-float-dmg" style={{ color: floatDmg!.color }}>
           {floatDmg!.val >= 0 ? `-${floatDmg!.val}` : `+${-floatDmg!.val}`}
         </span>
       )}
 
-      <div className="fg-top">
-        <div className="fg-portrait" style={{ borderColor: ac.color, boxShadow: `0 0 12px ${ac.glow}` }}>
-          {portrait}
-        </div>
-        <div className="fg-identity">
-          <span className="fg-label">{label}</span>
-          <span className="fg-name">{fighter.name}</span>
-          <span className="fg-rarity" style={{ color: rc }}>{fighter.rarity}</span>
-          <span className="fg-align" style={{ color: ac.color }}>{ac.icon} {ac.label}</span>
-        </div>
+      {/* Portrait */}
+      <div className="fg-portrait" style={{ borderColor: ac.color, boxShadow: `0 0 12px ${ac.glow}` }}>
+        {portrait}
       </div>
 
-      <HPBar hp={fighter.hp} maxHp={fighter.maxHp} />
-      <p className="fg-hp-txt">{fighter.hp} / {fighter.maxHp} HP</p>
+      {/* Main body */}
+      <div className="fg-body">
+        <div className="fg-body-top">
+          <div className="fg-identity">
+            <span className="fg-label">{label}</span>
+            <span className="fg-name">{fighter.name}</span>
+            <span className="fg-badges">
+              <span className="fg-rarity" style={{ color: rc }}>{fighter.rarity}</span>
+              <span className="fg-align" style={{ color: ac.color }}>{ac.icon} {ac.label}</span>
+            </span>
+          </div>
+          <p className="fg-hp-badge">
+            {fighter.hp}<span className="fg-hp-max"> / {fighter.maxHp} HP</span>
+          </p>
+        </div>
 
-      <div className="fg-stats-grid">
-        {([
-          { key: 'strength' as StatKey, icon: '⚔️', lbl: 'STR' },
-          { key: 'health'   as StatKey, icon: '❤️', lbl: 'HP'  },
-          { key: 'stamina'  as StatKey, icon: '🛡️', lbl: 'DEF' },
-        ]).map(s => {
-          const val   = fighter.final[s.key];
-          const base  = fighter.base[s.key];
-          const bonus = val - base;
-          return (
-            <div key={s.key} className="fg-stat-item">
-              <span className="fg-si-icon">{s.icon}</span>
-              <div className="fg-si-body">
-                <span className="fg-si-lbl">{s.lbl}</span>
-                <div className="fg-si-bar">
-                  <div className="fg-si-fill" style={{ width: `${Math.min(100, (val / 18) * 100)}%`, background: ac.color }} />
-                </div>
+        <HPBar hp={fighter.hp} maxHp={fighter.maxHp} />
+
+        <div className="fg-stats-row">
+          {([
+            { key: 'strength' as StatKey, icon: '⚔️', lbl: 'STR' },
+            { key: 'health'   as StatKey, icon: '❤️', lbl: 'HP'  },
+            { key: 'stamina'  as StatKey, icon: '🛡️', lbl: 'DEF' },
+          ]).map(s => {
+            const val   = fighter.final[s.key];
+            const base  = fighter.base[s.key];
+            const bonus = val - base;
+            return (
+              <div key={s.key} className="fg-stat-chip">
+                <span className="fg-sc-icon">{s.icon}</span>
+                <span className="fg-sc-lbl">{s.lbl}</span>
+                <span className="fg-sc-val">
+                  {val}{bonus > 0 && <span className="fg-si-bonus"> +{bonus}</span>}
+                </span>
               </div>
-              <span className="fg-si-val">
-                {val}
-                {bonus > 0 && <span className="fg-si-bonus">+{bonus}</span>}
-              </span>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── SpotlightPanel ───────────────────────────────────────────────────────────
+// ─── SpotlightPanel — full-width bottom banner ────────────────────────────────
 function SpotlightPanel({ spot, round }: { spot: Spotlight; round: number }) {
   if (spot.type === 'idle') {
     return (
       <div className="sp-panel sp-idle">
         <span className="sp-round">Round {round}</span>
-        <span className="sp-hint">Choose your action</span>
+        <span className="sp-hint">Choose your action below</span>
       </div>
     );
   }
@@ -265,47 +264,50 @@ function SpotlightPanel({ spot, round }: { spot: Spotlight; round: number }) {
       style={{ borderColor: spot.color, '--sp-color': spot.color } as React.CSSProperties}
     >
       <span className="sp-icon">{icons[spot.type] ?? '⚡'}</span>
-      <span className="sp-title" style={{ color: spot.color }}>{spot.title}</span>
-      {spot.detail && <span className="sp-detail">{spot.detail}</span>}
+      <div className="sp-text">
+        <span className="sp-title" style={{ color: spot.color }}>{spot.title}</span>
+        {spot.detail && <span className="sp-detail">{spot.detail}</span>}
+      </div>
     </div>
   );
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function BattleGame({ onClose }: { onClose: () => void }) {
-  const [phase,         setPhase]        = useState<Phase>('setup');
-  const [alignment,     setAlignment]    = useState<Alignment>('good');
-  const [rarity,        setRarity]       = useState<Rarity>('rare');
-  const [base,          setBase]         = useState<Stats>({ strength: 4, health: 5, stamina: 7 });
-  const [setupErr,      setSetupErr]     = useState('');
+  const [phase,          setPhase]         = useState<Phase>('setup');
+  const [alignment,      setAlignment]     = useState<Alignment>('good');
+  const [rarity,         setRarity]        = useState<Rarity>('rare');
+  const [base,           setBase]          = useState<Stats>({ strength: 4, health: 5, stamina: 7 });
+  const [setupErr,       setSetupErr]      = useState('');
 
-  // Pre-battle allocation dice
-  const [allocDice,     setAllocDice]    = useState<number[]>([]);
-  const [allocRolling,  setAllocRolling] = useState(false);
-  const [assigns,       setAssigns]      = useState<(StatKey | null)[]>([null, null, null]);
-  const [selDie,        setSelDie]       = useState<number | null>(null);
+  // Pre-battle allocation
+  const [allocDice,      setAllocDice]     = useState<number[]>([]);
+  const [allocRolling,   setAllocRolling]  = useState(false);
+  const [assigns,        setAssigns]       = useState<(StatKey | null)[]>([null, null, null]);
+  const [selDie,         setSelDie]        = useState<number | null>(null);
 
   // Fighters
-  const [player,        setPlayer]       = useState<Fighter | null>(null);
-  const [ai,            setAI]           = useState<Fighter | null>(null);
+  const [player,         setPlayer]        = useState<Fighter | null>(null);
+  const [ai,             setAI]            = useState<Fighter | null>(null);
 
-  // Battle sub-state
-  const [battleStep,    setBattleStep]   = useState<BattleStep>('choose');
-  const [playerAction,  setPlayerAction] = useState<Action | null>(null);
-  const [lastPlayerAct, setLastPlayerAct] = useState<Action | null>(null);
-  const [combatRoll,    setCombatRoll]   = useState<number | null>(null);
-  const [combatRolling, setCombatRolling] = useState(false);
-  const [revealedAIAct, setRevealedAIAct] = useState<Action | null>(null);
+  // Battle state
+  const [battleStep,     setBattleStep]    = useState<BattleStep>('choose');
+  const [playerAction,   setPlayerAction]  = useState<Action | null>(null);
+  const [lastPlayerAct,  setLastPlayerAct] = useState<Action | null>(null);
+  const [combatRoll,     setCombatRoll]    = useState<number | null>(null);
+  const [combatRolling,  setCombatRolling] = useState(false);
+  const [revealedAIAct,  setRevealedAIAct]  = useState<Action | null>(null);
   const [revealedAIRoll, setRevealedAIRoll] = useState<number | null>(null);
 
   // Visual
-  const [log,           setLog]          = useState<LogEntry[]>([]);
-  const [round,         setRound]        = useState(1);
-  const [animStep,      setAnimStep]     = useState<AnimStep>('idle');
-  const [spotlight,     setSpotlight]    = useState<Spotlight>(IDLE_SPOTLIGHT);
-  const [floatDmg,      setFloatDmg]     = useState<FloatDmg | null>(null);
-  const [winner,        setWinner]       = useState<'player' | 'ai' | null>(null);
-  const [streak,        setStreak]       = useState(0);
+  const [log,            setLog]           = useState<LogEntry[]>([]);
+  const [round,          setRound]         = useState(1);
+  const [animStep,       setAnimStep]      = useState<AnimStep>('idle');
+  const [spotlight,      setSpotlight]     = useState<Spotlight>(IDLE_SPOTLIGHT);
+  const [spotKey,        setSpotKey]       = useState(0);   // forces SpotlightPanel remount → reruns CSS anim
+  const [floatDmg,       setFloatDmg]      = useState<FloatDmg | null>(null);
+  const [winner,         setWinner]        = useState<'player' | 'ai' | null>(null);
+  const [streak,         setStreak]        = useState(0);
 
   const logRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -315,6 +317,12 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
   const rc = rarityColor[rarity];
   const rg = rarityGlow[rarity];
   const ac = ALIGN_CFG[alignment];
+
+  // Helper: set spotlight AND bump key so CSS animation retriggers
+  const showSpot = (s: Spotlight) => {
+    setSpotlight(s);
+    setSpotKey(k => k + 1);
+  };
 
   // ── Setup ──────────────────────────────────────────
   const setStat = (k: StatKey, d: number) =>
@@ -385,7 +393,7 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
     ]);
     setBattleStep('choose'); setPlayerAction(null);
     setCombatRoll(null); setRevealedAIAct(null); setRevealedAIRoll(null);
-    setAnimStep('idle'); setSpotlight(IDLE_SPOTLIGHT); setFloatDmg(null);
+    setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
     setPhase('battle');
   };
 
@@ -401,7 +409,6 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
   // ── Player rolls combat D6 ──────────────────────────
   const handleCombatRoll = () => {
     if (combatRolling || !player || !ai || !playerAction) return;
-    // Snapshot current state to avoid stale closure
     const snapPlayer = player;
     const snapAI     = ai;
     const snapAction = playerAction;
@@ -419,7 +426,6 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
       } else {
         setCombatRoll(finalRoll);
         setCombatRolling(false);
-        // Pick AI action and roll, then animate
         const aiAct = pickAIAction(snapAI, snapPlayer, lastPlayerAct);
         const aiR   = rollD6();
         setRevealedAIAct(aiAct);
@@ -442,7 +448,6 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
     const pass_p = calcPassive(curPlayer);
     const pass_a = calcPassive(curAI);
 
-    // Calc amounts
     let pDmg = 0, aDmg = 0, pHeal = 0, aHeal = 0;
     let pCrit = false, aCrit = false;
 
@@ -466,18 +471,18 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
       aHeal = aRoll + curAI.final.health;
     }
 
-    // Intermediate HP (after player's action resolves)
+    // Intermediate HP (after player's action)
     const aiHpMid     = Math.min(curAI.maxHp,     Math.max(0, curAI.hp     - pDmg));
     const playerHpMid = Math.min(curPlayer.maxHp,  Math.max(0, curPlayer.hp + pHeal));
 
-    // Final HP (after AI's action resolves)
+    // Final HP (after AI's action)
     const aiHpFinal     = Math.min(curAI.maxHp,     Math.max(0, aiHpMid     + aHeal));
     const playerHpFinal = Math.min(curPlayer.maxHp,  Math.max(0, playerHpMid - aDmg));
 
     const aiDefeated     = aiHpMid <= 0;
     const playerDefeated = !aiDefeated && playerHpFinal <= 0;
 
-    // Move names
+    // Pre-pick move names
     const pMove = pAct === 'attack' ? pick(MOVES[curPlayer.alignment][curPlayer.rarity])
       : pAct === 'defend'           ? pick(DEFEND_NAMES[curPlayer.alignment])
       :                               pick(HEAL_NAMES[curPlayer.alignment]);
@@ -497,9 +502,8 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
       entries.push({ id: uid(), type: pCrit ? 'critical' : 'hit', who: 'player',
         text: `${ac.icon} ${pMove}: ${pRoll}+${curPlayer.final.strength}${pCrit ? '+3🎯' : ''}=${pRoll + curPlayer.final.strength + (pCrit ? 3 : 0)}${shieldNote} → ${pDmg} dmg (${curAI.name}: ${aiHpFinal} HP)` });
     } else if (pAct === 'defend') {
-      const shield = pRoll + curPlayer.final.stamina;
       entries.push({ id: uid(), type: 'block', who: 'player',
-        text: `🛡️ ${pMove}: shield ${pRoll}+${curPlayer.final.stamina}=${shield}` });
+        text: `🛡️ ${pMove}: shield ${pRoll}+${curPlayer.final.stamina}=${pRoll + curPlayer.final.stamina}` });
     } else {
       entries.push({ id: uid(), type: 'heal', who: 'player',
         text: `💊 ${pMove}: healed +${pHeal} HP (You: ${playerHpFinal} HP)` });
@@ -512,9 +516,8 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
       entries.push({ id: uid(), type: aCrit ? 'critical' : 'hit', who: 'ai',
         text: `${aac.icon} ${aMove}: ${aRoll}+${curAI.final.strength}${aCrit ? '+3🎯' : ''}=${aRoll + curAI.final.strength + (aCrit ? 3 : 0)}${shieldNote} → ${aDmg} dmg (You: ${playerHpFinal} HP)` });
     } else if (aAct === 'defend') {
-      const shield = aRoll + curAI.final.stamina;
       entries.push({ id: uid(), type: 'block', who: 'ai',
-        text: `🛡️ ${curAI.name} ${aMove}: shield ${aRoll}+${curAI.final.stamina}=${shield}` });
+        text: `🛡️ ${curAI.name} ${aMove}: shield ${aRoll}+${curAI.final.stamina}=${aRoll + curAI.final.stamina}` });
     } else {
       entries.push({ id: uid(), type: 'heal', who: 'ai',
         text: `💊 ${curAI.name} ${aMove}: healed +${aHeal} HP (${curAI.name}: ${aiHpFinal} HP)` });
@@ -527,65 +530,65 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
           : `💀 Your Critter falls! ${aac.icon} ${curAI.name} wins.` });
     }
 
-    // ── Animation sequence ──────────────────────────────
-    // Step 1 — player's action animates
+    // ── Animation sequence ─────────────────────────────────────────────
+    // Step 1 (t=0): Player's action name appears
     const pSpotType: Spotlight['type'] = pAct === 'attack' ? (pCrit ? 'critical' : 'attack') : pAct === 'defend' ? 'block' : 'heal';
     setAnimStep('p-act');
-    setSpotlight({ title: pMove, detail: `${ac.icon} ${ACTION_CFG[pAct].label}`, color: ac.color, type: pSpotType });
+    showSpot({ title: pMove, detail: `${ac.icon} ${ACTION_CFG[pAct].label}`, color: ac.color, type: pSpotType });
 
+    // Step 2 (t+1000ms): Player's result lands — 2s display
     setTimeout(() => {
-      // Step 2 — player's action lands
       setAnimStep('a-hit');
       if (pAct === 'attack') {
         if (pDmg > 0) {
           setFloatDmg({ val: pDmg, color: '#f87171', side: 'ai', id: uid() });
           setAI(p => p ? { ...p, hp: aiHpMid } : p);
-          setSpotlight({ title: pCrit ? `🎯 CRIT! ${pDmg} dmg` : `${pDmg} damage`, detail: `${curAI.name}: ${aiHpMid} HP`, color: ac.color, type: pCrit ? 'critical' : 'damage' });
+          showSpot({ title: pCrit ? `🎯 Critical Hit! −${pDmg}` : `Hit! −${pDmg} damage`, detail: `${curAI.name}: ${aiHpMid} HP`, color: ac.color, type: pCrit ? 'critical' : 'damage' });
         } else {
-          setSpotlight({ title: '🛡️ Blocked!', detail: 'Shield absorbed it all', color: '#6ee7b7', type: 'block' });
+          showSpot({ title: '🛡️ Blocked!', detail: 'Shield absorbed all damage', color: '#6ee7b7', type: 'block' });
         }
       } else if (pAct === 'heal') {
         setFloatDmg({ val: -pHeal, color: '#4ade80', side: 'player', id: uid() });
         setPlayer(p => p ? { ...p, hp: playerHpMid } : p);
-        setSpotlight({ title: `+${pHeal} HP`, detail: `You: ${playerHpMid} HP`, color: '#4ade80', type: 'heal' });
+        showSpot({ title: `💊 Healed +${pHeal} HP`, detail: `You: ${playerHpMid} HP`, color: '#4ade80', type: 'heal' });
       } else {
-        setSpotlight({ title: '🛡️ Bracing...', detail: `Shield: ${pRoll + curPlayer.final.stamina}`, color: '#6ee7b7', type: 'block' });
+        showSpot({ title: `🛡️ ${pMove}`, detail: `Shield: ${pRoll + curPlayer.final.stamina}`, color: '#6ee7b7', type: 'block' });
       }
 
       if (aiDefeated) {
-        setTimeout(() => finishRound(entries, playerHpFinal, aiHpFinal, 'player'), 900);
+        setTimeout(() => finishRound(entries, playerHpFinal, aiHpFinal, 'player'), 2000);
         return;
       }
 
+      // Step 3 (t+1000+2000ms): AI's action name appears
       setTimeout(() => {
-        // Step 3 — AI's action animates
         const aSpotType: Spotlight['type'] = aAct === 'attack' ? (aCrit ? 'critical' : 'attack') : aAct === 'defend' ? 'block' : 'heal';
         setAnimStep('a-act');
-        setSpotlight({ title: aMove, detail: `${aac.icon} ${ACTION_CFG[aAct].label}`, color: aac.color, type: aSpotType });
+        showSpot({ title: aMove, detail: `${aac.icon} ${ACTION_CFG[aAct].label}`, color: aac.color, type: aSpotType });
 
+        // Step 4 (t+1000+2000+1000ms): AI's result lands — 2s display
         setTimeout(() => {
-          // Step 4 — AI's action lands
           setAnimStep('p-hit');
           if (aAct === 'attack') {
             if (aDmg > 0) {
               setFloatDmg({ val: aDmg, color: '#f87171', side: 'player', id: uid() });
               setPlayer(p => p ? { ...p, hp: playerHpFinal } : p);
-              setSpotlight({ title: aCrit ? `🎯 CRIT! ${aDmg} dmg` : `${aDmg} damage`, detail: `You: ${playerHpFinal} HP`, color: aac.color, type: aCrit ? 'critical' : 'damage' });
+              showSpot({ title: aCrit ? `🎯 Critical Hit! −${aDmg}` : `Hit! −${aDmg} damage`, detail: `You: ${playerHpFinal} HP`, color: aac.color, type: aCrit ? 'critical' : 'damage' });
             } else {
-              setSpotlight({ title: '🛡️ Blocked!', detail: 'Your shield held firm', color: '#6ee7b7', type: 'block' });
+              showSpot({ title: '🛡️ Blocked!', detail: 'Your shield held firm', color: '#6ee7b7', type: 'block' });
             }
           } else if (aAct === 'heal') {
             setFloatDmg({ val: -aHeal, color: '#4ade80', side: 'ai', id: uid() });
             setAI(p => p ? { ...p, hp: aiHpFinal } : p);
-            setSpotlight({ title: `+${aHeal} HP`, detail: `${curAI.name}: ${aiHpFinal} HP`, color: '#4ade80', type: 'heal' });
+            showSpot({ title: `💊 Rival healed +${aHeal} HP`, detail: `${curAI.name}: ${aiHpFinal} HP`, color: '#4ade80', type: 'heal' });
           } else {
-            setSpotlight({ title: '🛡️ Rival braced', detail: `Shield: ${aRoll + curAI.final.stamina}`, color: '#6ee7b7', type: 'block' });
+            showSpot({ title: `🛡️ ${aMove}`, detail: `Shield: ${aRoll + curAI.final.stamina}`, color: '#6ee7b7', type: 'block' });
           }
 
-          setTimeout(() => finishRound(entries, playerHpFinal, aiHpFinal, playerDefeated ? 'ai' : null), 900);
-        }, 850);
-      }, 700);
-    }, 850);
+          setTimeout(() => finishRound(entries, playerHpFinal, aiHpFinal, playerDefeated ? 'ai' : null), 2000);
+        }, 1000);
+      }, 2000);
+    }, 1000);
   };
 
   const finishRound = (
@@ -593,7 +596,9 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
     _pHp: number, _aHp: number,
     rWinner: 'player' | 'ai' | null,
   ) => {
-    setAnimStep('idle'); setSpotlight(IDLE_SPOTLIGHT); setFloatDmg(null);
+    setAnimStep('idle');
+    showSpot(IDLE_SPOTLIGHT);
+    setFloatDmg(null);
     setLog(p => [...p, ...entries]);
     setRound(p => p + 1);
     if (rWinner) {
@@ -626,7 +631,7 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
     ]);
     setBattleStep('choose'); setPlayerAction(null); setCombatRoll(null);
     setRevealedAIAct(null); setRevealedAIRoll(null);
-    setAnimStep('idle'); setSpotlight(IDLE_SPOTLIGHT); setFloatDmg(null);
+    setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
     setPhase('battle');
   };
 
@@ -636,7 +641,7 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
     setWinner(null); setStreak(0); setBattleStep('choose');
     setPlayerAction(null); setCombatRoll(null);
     setRevealedAIAct(null); setRevealedAIRoll(null);
-    setAnimStep('idle'); setSpotlight(IDLE_SPOTLIGHT); setFloatDmg(null);
+    setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────────
@@ -774,12 +779,12 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
         {/* ── BATTLE ── */}
         {phase === 'battle' && player && ai && (
           <div className="bg-arena">
-            {/* Fighter cards + spotlight */}
-            <div className="bg-fighters">
-              <FighterCard fighter={player} label="Your Critter" animStep={animStep} side="player" floatDmg={floatDmg} />
-              <SpotlightPanel spot={spotlight} round={round} />
-              <FighterCard fighter={ai} label="Rival" animStep={animStep} side="ai" floatDmg={floatDmg} />
-            </div>
+
+            {/* Row 1 — Player */}
+            <FighterCard fighter={player} label="Your Critter" animStep={animStep} side="player" floatDmg={floatDmg} />
+
+            {/* Row 2 — AI */}
+            <FighterCard fighter={ai} label="Rival" animStep={animStep} side="ai" floatDmg={floatDmg} />
 
             {/* Battle log */}
             <div className="bg-log" ref={logRef}>
@@ -791,9 +796,10 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
               {battleStep === 'animating' && <p className="bl-entry bl-thinking">…resolving…</p>}
             </div>
 
-            {/* Actions area */}
-            <div className="bg-actions-area">
-              <span className="bg-round-lbl">Round {round}</span>
+            {/* Row 3 — Spotlight info + actions */}
+            <div className="bg-bottom">
+              {/* Spotlight banner — rerenders with fresh key each change */}
+              <SpotlightPanel key={spotKey} spot={spotlight} round={round} />
 
               {/* Choose action */}
               {battleStep === 'choose' && (
@@ -808,7 +814,7 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
                 </div>
               )}
 
-              {/* Player rolling their combat die */}
+              {/* Roll die */}
               {battleStep === 'player-rolling' && (
                 <div className="bg-roll-area">
                   <p className="bg-roll-hint">
@@ -825,23 +831,16 @@ export function BattleGame({ onClose }: { onClose: () => void }) {
                       🎲 Roll!
                     </button>
                   )}
-                  {combatRolling && <p className="bg-roll-hint" style={{ fontStyle: 'italic', opacity: 0.6 }}>Rolling…</p>}
+                  {combatRolling && <p className="bg-roll-hint" style={{ fontStyle: 'italic', opacity: 0.5 }}>Rolling…</p>}
                 </div>
               )}
 
-              {/* Animating — show AI reveal */}
+              {/* Animating — show both rolls */}
               {battleStep === 'animating' && revealedAIAct && (
                 <div className="bg-ai-reveal">
-                  <span className="bg-ai-reveal-lbl">Rival chose</span>
-                  <span className="bg-ai-reveal-act">
-                    {ACTION_CFG[revealedAIAct].icon} {ACTION_CFG[revealedAIAct].label}
-                    {revealedAIRoll !== null && (
-                      <span className="bg-ai-reveal-roll"> · rolled {revealedAIRoll}</span>
-                    )}
-                  </span>
-                  {combatRoll !== null && (
-                    <span className="bg-ai-reveal-you">Your roll: {combatRoll}</span>
-                  )}
+                  <span className="bg-ai-reveal-you">Your roll: <strong>{combatRoll}</strong> — {ACTION_CFG[playerAction!].icon} {ACTION_CFG[playerAction!].label}</span>
+                  <span className="bg-ai-reveal-sep">·</span>
+                  <span className="bg-ai-reveal-act">Rival rolled: <strong>{revealedAIRoll}</strong> — {ACTION_CFG[revealedAIAct].icon} {ACTION_CFG[revealedAIAct].label}</span>
                 </div>
               )}
             </div>
