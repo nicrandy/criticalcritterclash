@@ -443,12 +443,12 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setStage(1);
     setPlayer(pF); setAI(aF); setRound(1); setWinner(null);
     setPlayerHeals(0); setAiHeals(0);
-    setPlayerShield(0); setPlayerShieldMax(0); setPlayerDefended(false);
-    setAiShield(0);    setAiShieldMax(0);    setAiDefended(false);
+    setPlayerShield(pFinal.stamina); setPlayerShieldMax(pFinal.stamina); setPlayerDefended(false);
+    setAiShield(aiFinal.stamina);    setAiShieldMax(aiFinal.stamina);    setAiDefended(false);
     setLog([
       {id:uid(),type:'info',text:`⚔️  Battle begins!  ${playerName||'Your Critter'}  vs  ${aiName}`},
-      {id:uid(),type:'info',text:`You — ${ac.icon} ${ac.label} · STR ${pFinal.strength} · ❤️ ${pMaxHp} HP · 🛡️ DEF ${pFinal.stamina}`},
-      {id:uid(),type:'info',text:`${aiName} — ${aac.icon} ${aac.label} · STR ${aiFinal.strength} · ❤️ ${aMaxHp} HP · 🛡️ DEF ${aiFinal.stamina}`},
+      {id:uid(),type:'info',text:`You — ${ac.icon} ${ac.label} · STR ${pFinal.strength} · ❤️ ${pMaxHp} HP · 🛡️ ${pFinal.stamina} shield`},
+      {id:uid(),type:'info',text:`${aiName} — ${aac.icon} ${aac.label} · STR ${aiFinal.strength} · ❤️ ${aMaxHp} HP · 🛡️ ${aiFinal.stamina} shield`},
     ]);
     setBattleStep('choose'); setPlayerAction(null);
     setCombatRoll(null); setRevealedAIAct(null); setRevealedAIRoll(null);
@@ -507,8 +507,8 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setBattleStep('animating'); setLastPlayerAct(pAct);
     if (pAct === 'heal')   setPlayerHeals(h => h + 1);
     if (aAct === 'heal')   setAiHeals(h => h + 1);
-    if (pAct === 'defend') { setPlayerDefended(true); setPlayerShieldMax(pRoll + curP.final.stamina); }
-    if (aAct === 'defend') { setAiDefended(true);    setAiShieldMax(aRoll + curA.final.stamina); }
+    if (pAct === 'defend') { setPlayerDefended(true); setPlayerShieldMax(m => Math.max(m, curPS + pRoll + curP.final.stamina)); }
+    if (aAct === 'defend') { setAiDefended(true);    setAiShieldMax(m => Math.max(m, curAS + aRoll + curA.final.stamina)); }
 
     const pass_p = calcPassive(curP), pass_a = calcPassive(curA);
 
@@ -687,11 +687,11 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     // HP and heal count carry over — no restoration between stages
     setAI({name:aiName,rarity:aiRarity,alignment:aiAlign,base:aiBase,final:aiFinal,hp:aMaxHp,maxHp:aMaxHp});
     setRound(1); setWinner(null); setAiHeals(0);
-    setPlayerShield(0); setPlayerShieldMax(0); setPlayerDefended(false);
-    setAiShield(0);    setAiShieldMax(0);    setAiDefended(false);
+    setPlayerShield(player.final.stamina); setPlayerShieldMax(player.final.stamina); setPlayerDefended(false);
+    setAiShield(aiFinal.stamina);          setAiShieldMax(aiFinal.stamina);          setAiDefended(false);
     setLog([{id:uid(),type:'info',text:`⚔️  Stage ${newStage} — ${aiName} enters!`},
-            {id:uid(),type:'info',text:`${aiName} — STR ${aiFinal.strength} · ❤️ ${aMaxHp} HP · 🛡️ DEF ${aiFinal.stamina}`},
-            {id:uid(),type:'info',text:`⚠️ Your HP carries over: ${player.hp} / ${player.maxHp} · Heals remaining: ${3 - playerHeals}`}]);
+            {id:uid(),type:'info',text:`${aiName} — STR ${aiFinal.strength} · ❤️ ${aMaxHp} HP · 🛡️ ${aiFinal.stamina} shield`},
+            {id:uid(),type:'info',text:`⚠️ HP carries over: ${player.hp}/${player.maxHp} · 🛡️ ${player.final.stamina} shield restored · Heals: ${3-playerHeals} left`}]);
     setBattleStep('choose'); setPlayerAction(null); setCombatRoll(null);
     setRevealedAIAct(null); setRevealedAIRoll(null);
     setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
