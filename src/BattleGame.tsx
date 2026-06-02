@@ -957,61 +957,63 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
           </div>
         )}
 
-        {/* ── STEP 4: Roll dice — click any die ── */}
-        {phase==='rolling' && (
+        {/* ── STEP 4+5: Roll dice & assign — combined screen ── */}
+        {(phase==='rolling' || phase==='allocating') && (
           <div className="bg-panel">
             <p className="bg-eyebrow">Pre-Battle · {playerName}</p>
-            <h2 className="bg-title">Roll Your Dice</h2>
-            <p className="bg-sub" style={{fontSize:'0.82rem',opacity:0.7}}>Click any die to roll all 3 D6s and boost your stats.</p>
-            <div className="bg-dice-row">
-              {(allocDice.length===3?allocDice:[0,0,0]).map((v,i)=>(
-                <D6Die key={i}
-                  value={allocDice.length===3?v:'?'}
-                  spinning={allocRolling} large
-                  onClick={!allocRolling && allocDice.length<3 ? handleAllocRoll : undefined}
-                />
-              ))}
-            </div>
-            {allocRolling && <p style={{fontSize:'0.8rem',color:'var(--text-dim)',fontStyle:'italic'}}>Rolling…</p>}
-            {allocDice.length===3 && !allocRolling && (
-              <button className="bg-cta" onClick={()=>setPhase('allocating')} style={{borderColor:ac.color,color:ac.color}}>
-                Assign Stats →
-              </button>
-            )}
-          </div>
-        )}
+            <h2 className="bg-title">Roll &amp; Assign Dice</h2>
+            <p className="bg-sub" style={{fontSize:'0.82rem',opacity:0.7}}>
+              {allocDice.length===0
+                ? 'Click any die to roll all three and boost your stats.'
+                : allocRolling
+                ? 'Rolling…'
+                : selDie!==null
+                ? 'Now tap a stat below to assign that die.'
+                : 'Select a die, then tap a stat. Click × to un-assign.'}
+            </p>
 
-        {/* ── STEP 5: Assign dice — with × undo ── */}
-        {phase==='allocating' && (
-          <div className="bg-panel">
-            <p className="bg-eyebrow">Pre-Battle · {playerName}</p>
-            <h2 className="bg-title">Assign Your Dice</h2>
-            <p className="bg-sub" style={{fontSize:'0.82rem',opacity:0.7}}>Select a die, then tap a stat. Click × on a die to un-assign.</p>
-
+            {/* Dice row */}
             <div className="bg-dice-row">
-              {allocDice.map((v,i)=>(
-                <div key={i} className="bg-die-slot">
-                  <D6Die value={v} large selected={selDie===i} used={assigns[i]!==null}
-                    onClick={()=>assigns[i]===null&&setSelDie(selDie===i?null:i)}
+              {allocDice.length===0 ? (
+                /* Pre-roll: three ? dice, any click triggers the roll */
+                [0,1,2].map(i=>(
+                  <D6Die key={i} value='?' spinning={allocRolling} large
+                    onClick={!allocRolling ? handleAllocRoll : undefined}
                   />
-                  {assigns[i]!==null && (
-                    <button className="bg-die-clear" onClick={()=>clearAssign(i)}
-                      title={`Remove ${assigns[i]} assignment`}>
-                      {({strength:'⚔️',health:'❤️',stamina:'🛡️'} as Record<StatKey,string>)[assigns[i]!]} ×
-                    </button>
-                  )}
-                </div>
-              ))}
+                ))
+              ) : allocRolling ? (
+                /* Spinning animation */
+                allocDice.map((v,i)=>(
+                  <D6Die key={i} value={v} spinning large />
+                ))
+              ) : (
+                /* Post-roll: selectable die-slots */
+                allocDice.map((v,i)=>(
+                  <div key={i} className="bg-die-slot">
+                    <D6Die value={v} large selected={selDie===i} used={assigns[i]!==null}
+                      onClick={()=>assigns[i]===null&&setSelDie(selDie===i?null:i)}
+                    />
+                    {assigns[i]!==null && (
+                      <button className="bg-die-clear" onClick={()=>clearAssign(i)}
+                        title={`Remove ${assigns[i]} assignment`}>
+                        {({strength:'⚔️',health:'❤️',stamina:'🛡️'} as Record<StatKey,string>)[assigns[i]!]} ×
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
 
+            {/* Stat assignment — visible always; active once dice are rolled and a die is selected */}
             <div className="bg-alloc-stats">
               {(['strength','health','stamina'] as StatKey[]).map(k=>{
                 const icons:Record<StatKey,string>={strength:'⚔️',health:'❤️',stamina:'🛡️'};
                 const names:Record<StatKey,string>={strength:'Strength',health:'Health',stamina:'Defense'};
                 const bonus = assigns.reduce((s,a,i)=>a===k?s+allocDice[i]:s,0);
+                const ready = selDie!==null && allocDice.length===3 && !allocRolling;
                 return (
-                  <button key={k} onClick={()=>handleAssign(k)} disabled={selDie===null}
-                    className={`bg-alloc-btn ${selDie!==null?'bg-alloc-btn--ready':''}`}>
+                  <button key={k} onClick={()=>handleAssign(k)} disabled={!ready}
+                    className={`bg-alloc-btn ${ready?'bg-alloc-btn--ready':''}`}>
                     <span>{icons[k]}</span>
                     <span className="bab-name">{names[k]}</span>
                     <span className="bab-val">
@@ -1023,8 +1025,9 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
             </div>
 
             <div className="bg-alloc-footer">
-              <button className="bg-cta bg-cta--ghost" onClick={resetAssigns} disabled={assigns.every(a=>a===null)}>
-                ↺ Reset Dice
+              <button className="bg-cta bg-cta--ghost" onClick={resetAssigns}
+                disabled={assigns.every(a=>a===null)}>
+                ↺ Reset
               </button>
               <button className="bg-cta" onClick={handleBeginBattle} disabled={!allAssigned}
                 style={{borderColor:ac.color,color:ac.color,opacity:allAssigned?1:0.4}}>
