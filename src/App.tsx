@@ -175,6 +175,65 @@ function App() {
               <span className="arena-banner-label">⚔️ Enter the Arena</span>
             </div>
           </button>
+
+          {/* ── Balance of Power ── */}
+          {(() => {
+            const good    = scores?.alignment.good ?? 0;
+            const evil    = scores?.alignment.evil ?? 0;
+            const total   = good + evil;
+            const goodPct = total > 0 ? (good / total) * 100 : 50;
+            const evilPct = 100 - goodPct;
+            const leader  = goodPct > 50.5 ? '✨ Saintly leads'
+                          : evilPct > 50.5 ? '🔥 Wicked leads'
+                          : '⚖️ Dead even';
+            const guilds  = scores?.guilds ?? [];
+            const maxPts  = Math.max(...guilds.map(g => g.total_points), 1);
+            return (
+              <div className="hero-war">
+                <p className="hero-war-eyebrow">Balance of Power</p>
+
+                {/* Tug-of-war */}
+                <div className="war-tug-wrap">
+                  <div className="war-tug-labels">
+                    <span className="war-label war-label--good">✨ Saintly</span>
+                    <span className="war-tug-leader">{leader}</span>
+                    <span className="war-label war-label--evil">🔥 Wicked</span>
+                  </div>
+                  <div className="war-tug-track">
+                    <div className="war-tug-good" style={{ width: `${goodPct}%` }} />
+                    <div className="war-tug-evil" style={{ width: `${evilPct}%` }} />
+                  </div>
+                  <div className="war-tug-scores">
+                    <span className="war-score war-score--good">{good.toLocaleString()} pts</span>
+                    <span className="war-score war-score--evil">{evil.toLocaleString()} pts</span>
+                  </div>
+                </div>
+
+                {/* Guild standings */}
+                <div className="war-guilds">
+                  <h3 className="war-guilds-title">⚔️ Guild Standings</h3>
+                  {guilds.map((g, i) => {
+                    const isTop = i === 0 && g.total_points > 0;
+                    const pct   = (g.total_points / maxPts) * 100;
+                    return (
+                      <div key={g.guild} className={`war-guild-row ${isTop ? 'war-guild-row--top' : ''}`}>
+                        <span className="war-guild-rank">{isTop ? '🏆' : `#${i + 1}`}</span>
+                        <span className="war-guild-icon">{GUILD_ICONS[g.guild] ?? '❓'}</span>
+                        <span className="war-guild-name">{g.guild.charAt(0).toUpperCase() + g.guild.slice(1)}</span>
+                        <div className="war-guild-track">
+                          <div
+                            className={`war-guild-fill ${isTop ? 'war-guild-fill--top' : ''}`}
+                            style={{ width: g.total_points > 0 ? `${pct}%` : '2px' }}
+                          />
+                        </div>
+                        <span className="war-guild-pts">{g.total_points.toLocaleString()} <span className="war-pts-lbl">pts</span></span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
         <div className="hero-fade" aria-hidden="true" />
       </section>
@@ -206,76 +265,6 @@ function App() {
             ))}
           </div>
         )}
-      </section>
-
-      {/* ── BALANCE OF POWER ── */}
-      <section id="power" className="section war-section">
-        <div className="section-header">
-          <p className="section-eyebrow">Global Conflict</p>
-          <h2 className="section-title">Balance of Power</h2>
-          <p className="section-sub">Every stage won shifts the tide. The war for Wyoming never ends.</p>
-        </div>
-
-        {/* ── Alignment tug-of-war ── */}
-        {(() => {
-          const good  = scores?.alignment.good  ?? 0;
-          const evil  = scores?.alignment.evil  ?? 0;
-          const total = good + evil;
-          const goodPct = total > 0 ? (good / total) * 100 : 50;
-          const evilPct = 100 - goodPct;
-          const leader  = goodPct > 50.5 ? '✨ Saintly leads'
-                        : evilPct > 50.5 ? '🔥 Wicked leads'
-                        : '⚖️ Dead even';
-          return (
-            <div className="war-tug-wrap">
-              <div className="war-tug-labels">
-                <span className="war-label war-label--good">✨ Saintly</span>
-                <span className="war-tug-leader">{leader}</span>
-                <span className="war-label war-label--evil">🔥 Wicked</span>
-              </div>
-              <div className="war-tug-track">
-                <div className="war-tug-good" style={{ width: `${goodPct}%` }} />
-                <div className="war-tug-evil" style={{ width: `${evilPct}%` }} />
-              </div>
-              <div className="war-tug-scores">
-                <span className="war-score war-score--good">{good.toLocaleString()} pts</span>
-                <span className="war-score war-score--evil">{evil.toLocaleString()} pts</span>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* ── Guild standings ── */}
-        {(() => {
-          const guilds   = scores?.guilds ?? [];
-          const maxPts   = Math.max(...guilds.map(g => g.total_points), 1);
-          return (
-            <div className="war-guilds">
-              <h3 className="war-guilds-title">⚔️ Guild Standings</h3>
-              {guilds.map((g, i) => {
-                const isTop = i === 0 && g.total_points > 0;
-                const pct   = (g.total_points / maxPts) * 100;
-                return (
-                  <div key={g.guild} className={`war-guild-row ${isTop ? 'war-guild-row--top' : ''}`}>
-                    <span className="war-guild-rank">{isTop ? '🏆' : `#${i + 1}`}</span>
-                    <span className="war-guild-icon">{GUILD_ICONS[g.guild] ?? '❓'}</span>
-                    <span className="war-guild-name">{g.guild.charAt(0).toUpperCase() + g.guild.slice(1)}</span>
-                    <div className="war-guild-track">
-                      <div
-                        className={`war-guild-fill ${isTop ? 'war-guild-fill--top' : ''}`}
-                        style={{ width: g.total_points > 0 ? `${pct}%` : '2px' }}
-                      />
-                    </div>
-                    <span className="war-guild-pts">{g.total_points.toLocaleString()} <span className="war-pts-lbl">pts</span></span>
-                  </div>
-                );
-              })}
-              {guilds.length === 0 && (
-                <p style={{ textAlign: 'center', opacity: 0.45, fontStyle: 'italic' }}>Scores will appear after the first battles.</p>
-              )}
-            </div>
-          );
-        })()}
       </section>
 
       {/* ── CRITTERS ── */}

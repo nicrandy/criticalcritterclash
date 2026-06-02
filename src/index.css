@@ -1357,15 +1357,29 @@ body {
 .cc-event-link:hover { color: var(--gold-light); }
 
 /* ── BALANCE OF POWER ─────────────────────────────── */
-.war-section {
-  background: linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-mid) 100%);
+.hero-war {
+  width: 100%;
+  max-width: 600px;
+  margin: 2.5rem auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.hero-war-eyebrow {
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-dim);
+  margin-bottom: 1rem;
 }
 
 /* Tug-of-war bar */
 .war-tug-wrap {
   width: 100%;
-  max-width: 640px;
-  margin: 1.5rem auto 0;
+  max-width: 600px;
 }
 
 .war-tug-labels {
@@ -1435,8 +1449,8 @@ body {
 /* Guild standings */
 .war-guilds {
   width: 100%;
-  max-width: 540px;
-  margin: 2.5rem auto 0;
+  max-width: 600px;
+  margin-top: 2rem;
 }
 
 .war-guilds-title {
