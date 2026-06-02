@@ -910,7 +910,7 @@ body {
   width:80px; height:80px; position:relative;
   background:transparent; border:none; padding:0; cursor:default;
   filter:drop-shadow(0 0 10px rgba(201,168,76,0.25));
-  transition:filter 0.2s, transform 0.15s;
+  transition:filter 0.2s, transform 0.25s cubic-bezier(0.34,1.56,0.64,1);
   flex-shrink:0;
 }
 .bg-d6.bg-d6--lg  { width:100px; height:100px; }
@@ -920,6 +920,10 @@ body {
 .bg-d6--spin  { animation:d6Spin 0.12s linear infinite; filter:drop-shadow(0 0 22px rgba(201,168,76,0.8)); cursor:not-allowed; }
 .bg-d6--sel   { filter:drop-shadow(0 0 22px var(--align-glow,rgba(201,168,76,0.9))); transform:scale(1.1) translateY(-4px); }
 .bg-d6--used  { opacity:0.28; cursor:not-allowed; }
+.bg-d6--settled {
+  transform: scale(1.14);
+  filter: drop-shadow(0 0 22px rgba(201,168,76,0.75));
+}
 .bg-d6-check  { position:absolute; top:3px; right:3px; font-size:0.6rem; color:var(--gold); background:var(--bg-deep); border-radius:50%; width:15px; height:15px; display:flex; align-items:center; justify-content:center; border:1px solid var(--gold-dim); }
 
 @keyframes d6Spin {

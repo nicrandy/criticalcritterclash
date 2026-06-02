@@ -220,14 +220,14 @@ const D6_DOTS: Record<number, [number, number][]> = {
   6: [[32,26],[68,26],[32,50],[68,50],[32,74],[68,74]],
 };
 
-function D6Die({ value, spinning, selected, used, onClick, large }: {
+function D6Die({ value, spinning, selected, used, onClick, large, settled }: {
   value: number | '?'; spinning?: boolean; selected?: boolean;
-  used?: boolean; onClick?: () => void; large?: boolean;
+  used?: boolean; onClick?: () => void; large?: boolean; settled?: boolean;
 }) {
   return (
     <button type="button"
       className={['bg-d6', spinning?'bg-d6--spin':'', selected?'bg-d6--sel':'',
-        used?'bg-d6--used':'', large?'bg-d6--lg':'',
+        used?'bg-d6--used':'', large?'bg-d6--lg':'', settled?'bg-d6--settled':'',
         onClick && !used && !spinning ? 'bg-d6--clickable' : ''].filter(Boolean).join(' ')}
       onClick={onClick} disabled={used || !onClick}
     >
@@ -351,6 +351,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
 
   const [allocDice,      setAllocDice]     = useState<number[]>([]);
   const [allocRolling,   setAllocRolling]  = useState(false);
+  const [allocSettled,   setAllocSettled]  = useState(false);
   const [assigns,        setAssigns]       = useState<(StatKey|null)[]>([null,null,null]);
   const [selDie,         setSelDie]        = useState<number|null>(null);
 
@@ -362,6 +363,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   const [lastPlayerAct,  setLastPlayerAct] = useState<Action|null>(null);
   const [combatRoll,     setCombatRoll]    = useState<number|null>(null);
   const [combatRolling,  setCombatRolling] = useState(false);
+  const [combatSettled,  setCombatSettled] = useState(false);
   const [revealedAIAct,  setRevealedAIAct]  = useState<Action|null>(null);
   const [revealedAIRoll, setRevealedAIRoll] = useState<number|null>(null);
 
@@ -419,13 +421,13 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   // ── Pre-battle dice ─────────────────────────────────────────────────────────
   const handleAllocRoll = () => {
     if (allocRolling || allocDice.length === 3) return;
-    setAllocRolling(true);
+    setAllocRolling(true); setAllocSettled(false);
     const final = [rollD6(), rollD6(), rollD6()];
-    const schedule = [...Array(10).fill(40),...Array(7).fill(80),...Array(5).fill(140),...Array(3).fill(250),...Array(2).fill(420)];
+    const schedule = [...Array(14).fill(18),...Array(8).fill(40),...Array(5).fill(80),...Array(3).fill(160),...Array(2).fill(280)];
     let i = 0;
     const tick = () => {
       if (i < schedule.length) { setAllocDice([rollD6(),rollD6(),rollD6()]); setTimeout(tick, schedule[i++]); }
-      else { setAllocDice(final); setAllocRolling(false); }
+      else { setAllocDice(final); setAllocRolling(false); setAllocSettled(true); }
     };
     tick();
   };
@@ -489,14 +491,14 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   };
 
   const handleRealProceedToRolling = () => {
-    setAllocDice([]); setAssigns([null, null, null]); setSelDie(null);
+    setAllocDice([]); setAssigns([null, null, null]); setSelDie(null); setAllocSettled(false);
     setPhase('rolling');
   };
 
 
   // ── Combat ──────────────────────────────────────────────────────────────────
   const handleChooseAction = (action: Action) => {
-    setPlayerAction(action); setCombatRoll(null);
+    setPlayerAction(action); setCombatRoll(null); setCombatSettled(false);
     setRevealedAIAct(null); setRevealedAIRoll(null);
     setBattleStep('player-rolling');
   };
@@ -506,16 +508,19 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     const snapP=player, snapA=ai, snapAct=playerAction, snapAiH=aiHeals, snapAiD=aiDefended, snapPS=playerShield, snapAS=aiShield;
     setCombatRolling(true);
     const finalRoll = rollD6();
-    const schedule  = [...Array(8).fill(50),...Array(6).fill(100),...Array(4).fill(160),...Array(2).fill(300),...Array(2).fill(450)];
+    const schedule  = [...Array(12).fill(18),...Array(8).fill(40),...Array(5).fill(80),...Array(2).fill(160),...Array(2).fill(280)];
     let i = 0;
     const tick = () => {
       if (i < schedule.length) { setCombatRoll(rollD6()); setTimeout(tick, schedule[i++]); }
       else {
-        setCombatRoll(finalRoll); setCombatRolling(false);
+        setCombatRoll(finalRoll); setCombatRolling(false); setCombatSettled(true);
         const aiAct = pickAIAction(snapA, snapP, lastPlayerAct, snapAiH, snapAiD);
         const aiR   = rollD6();
         setRevealedAIAct(aiAct); setRevealedAIRoll(aiR);
-        resolveRound(snapAct, finalRoll, aiAct, aiR, snapP, snapA, snapPS, snapAS);
+        setTimeout(() => {
+          setCombatSettled(false);
+          resolveRound(snapAct, finalRoll, aiAct, aiR, snapP, snapA, snapPS, snapAS);
+        }, 1200);
       }
     };
     tick();
@@ -727,7 +732,8 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setStage(1);
     setMaxPlayerHeals(3); setBonusAttackRoll(0); setBonusPassive(0); setPerkChoices([]);
     setBattleStep('choose');
-    setPlayerAction(null); setCombatRoll(null); setRevealedAIAct(null); setRevealedAIRoll(null);
+    setPlayerAction(null); setCombatRoll(null); setCombatSettled(false); setRevealedAIAct(null); setRevealedAIRoll(null);
+    setAllocSettled(false);
     setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
     setEnchanted(false); setBase({strength:0,health:0,stamina:0}); setPlayerName('');
   };
@@ -1055,6 +1061,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
                 allocDice.map((v,i)=>(
                   <div key={i} className="bg-die-slot">
                     <D6Die value={v} large selected={selDie===i} used={assigns[i]!==null}
+                      settled={allocSettled && assigns[i]===null && selDie!==i}
                       onClick={()=>assigns[i]===null&&setSelDie(selDie===i?null:i)}
                     />
                     {assigns[i]!==null && (
@@ -1140,6 +1147,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
                     {ACTION_CFG[playerAction!].icon} <strong>{ACTION_CFG[playerAction!].label}</strong> — click the die to roll!
                   </p>
                   <D6Die value={combatRoll??'?'} spinning={combatRolling} large
+                    settled={combatSettled}
                     onClick={!combatRolling&&combatRoll===null?handleCombatRoll:undefined}/>
                   {combatRolling&&<p className="bg-roll-hint" style={{opacity:0.5,fontStyle:'italic'}}>Rolling…</p>}
                 </div>
