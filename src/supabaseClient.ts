@@ -16,6 +16,36 @@ export interface Event {
   url: string | null;
 }
 
+// ── Global score tracking ─────────────────────────────────────────────────────
+
+/** Points awarded per victorious stage, keyed by starting rank */
+const STAGE_POINTS: Record<string, number> = {
+  rare:      3,  // Hard mode — highest reward
+  unique:    2,  // Medium
+  legendary: 1,  // Easy mode — lowest reward
+};
+
+/**
+ * Called after each stage win. Atomically increments alignment and (if
+ * playing with a real card) guild totals by the rank-based point value.
+ * Fire-and-forget — failures are logged but never block the UI.
+ */
+export async function submitStageScore(
+  alignment: 'good' | 'evil',
+  rarity: 'rare' | 'unique' | 'legendary',
+  guild?: string,
+): Promise<void> {
+  const pts = STAGE_POINTS[rarity] ?? 1;
+  try {
+    await supabase.rpc('add_alignment_points', { p_alignment: alignment, p_points: pts });
+    if (guild) {
+      await supabase.rpc('add_guild_points', { p_guild: guild, p_points: pts });
+    }
+  } catch (err) {
+    console.warn('[scores] submitStageScore failed silently:', err);
+  }
+}
+
 /** Format start/end dates into a readable range, e.g. "May 23 – 25" or "September 7" */
 export function formatEventDate(start: string, end: string | null): string {
   const startDt = new Date(start + 'T12:00:00');

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { rarityColor, rarityGlow } from './critters';
+import { submitStageScore } from './supabaseClient';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Rarity     = 'rare' | 'unique' | 'legendary';
@@ -743,6 +744,8 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     const shuffled = [...ALL_PERKS].sort(() => Math.random() - 0.5);
     setPerkChoices(shuffled.slice(0, 2));
     setPhase('perk');
+    // Submit this stage's score globally (fire-and-forget)
+    submitStageScore(alignment, rarity, critterMode === 'real' ? guild : undefined);
   };
 
   const applyPerkAndContinue = (perkId: string) => {
