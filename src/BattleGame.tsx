@@ -8,7 +8,7 @@ type StatKey    = 'strength' | 'health' | 'stamina';
 type Alignment  = 'good' | 'evil';
 type Guild      = 'rabbit' | 'fox' | 'squirrel' | 'rogue';
 type Action     = 'attack' | 'defend' | 'heal';
-type Phase      = 'mode' | 'setup' | 'enchant' | 'rolling' | 'allocating' | 'real-setup' | 'real-stats' | 'battle' | 'result' | 'perk';
+type Phase      = 'mode' | 'setup' | 'rolling' | 'allocating' | 'real-setup' | 'real-stats' | 'battle' | 'result' | 'perk';
 type BattleStep = 'choose' | 'player-rolling' | 'animating';
 type AnimStep   = 'idle' | 'p-act' | 'a-hit' | 'a-act' | 'p-hit';
 
@@ -348,7 +348,6 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   const [guild,          setGuild]         = useState<Guild>('rabbit');
   const [base,           setBase]          = useState<Stats>({strength:0,health:0,stamina:0});
   const [playerName,     setPlayerName]    = useState('');
-  const [enchanted,      setEnchanted]     = useState(false);
 
   const [allocDice,      setAllocDice]     = useState<number[]>([]);
   const [allocRolling,   setAllocRolling]  = useState(false);
@@ -399,9 +398,8 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
 
   const showSpot = (s: Spotlight) => { setSpotlight(s); setSpotKey(k=>k+1); };
 
-  // ── Enchant: generate RNG stats + name ─────────────────────────────────────
-  const handleEnchant = () => {
-    if (enchanted) return;
+  // ── Generated critter: auto-roll stats + name, skip reveal screen ───────────
+  const handleStartEnchant = () => {
     const newBase: Stats = {
       strength: rollStatForRarity(rarity),
       health:   rollStatForRarity(rarity),
@@ -409,14 +407,8 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     };
     setBase(newBase);
     setPlayerName(pick(PLAYER_NAMES[alignment]));
-    setEnchanted(true);
-  };
-
-  const handleStartEnchant = () => {
-    setEnchanted(false);
-    setBase({strength:0,health:0,stamina:0});
-    setPlayerName('');
-    setPhase('enchant');
+    setAllocDice([]); setAssigns([null,null,null]); setSelDie(null); setAllocSettled(false);
+    setPhase('rolling');
   };
 
   // ── Pre-battle dice ─────────────────────────────────────────────────────────
@@ -736,7 +728,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setPlayerAction(null); setCombatRoll(null); setCombatSettled(false); setRevealedAIAct(null); setRevealedAIRoll(null);
     setAllocSettled(false);
     setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
-    setEnchanted(false); setBase({strength:0,health:0,stamina:0}); setPlayerName('');
+    setBase({strength:0,health:0,stamina:0}); setPlayerName('');
   };
 
   // ── Perk flow ───────────────────────────────────────────────────────────────
@@ -996,57 +988,29 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
           </div>
         )}
 
-        {/* ── STEP 3: Enchant — show generated stats ── */}
-        {phase==='enchant' && (
-          <div className="bg-panel">
-            <p className="bg-eyebrow">Your Critter</p>
-            <h2 className="bg-title">{enchanted ? playerName : '???'}</h2>
-            <p className="bg-sub">{ac.icon} {ac.label} · {DIFFICULTY_CFG[rarity].icon} {rarity[0].toUpperCase()+rarity.slice(1)} ({DIFFICULTY_CFG[rarity].diff})</p>
-
-            {!enchanted ? (
-              <>
-                <p className="bg-sub" style={{opacity:0.55,fontSize:'0.82rem'}}>
-                  Tap the button to reveal your critter's destiny.
-                </p>
-                <button className="bg-cta bg-enchant-btn" onClick={handleEnchant} style={{borderColor:ac.color,color:ac.color}}>
-                  ✨ Enchant Animal
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="bg-enchant-stats">
-                  {([['strength','⚔️','STR'],['health','❤️','HP'],['stamina','🛡️','DEF']] as [StatKey,string,string][]).map(([k,icon,lbl])=>(
-                    <div key={k} className="bg-es-item">
-                      <span className="bg-es-icon">{icon}</span>
-                      <span className="bg-es-lbl">{lbl}</span>
-                      <span className="bg-es-val" style={{color:ac.color}}>{base[k]}</span>
-                      <div className="bg-es-bar">
-                        <div className="bg-es-fill" style={{width:`${(base[k]/9)*100}%`,background:ac.color}}/>
-                      </div>
-                    </div>
-                  ))}
-                  <div className="bg-es-hp">
-                    <span>Starting HP</span>
-                    <span style={{color:ac.color,fontFamily:'var(--font-heading)',fontWeight:700}}>{calcMaxHp(base.health)}</span>
-                  </div>
-                </div>
-                <p className="bg-sub" style={{fontSize:'0.75rem',opacity:0.5}}>Stats are sealed by fate — no rerolls.</p>
-                <div className="bg-enchant-actions">
-                  <button className="bg-cta" onClick={()=>{setAllocDice([]);setAssigns([null,null,null]);setSelDie(null);setPhase('rolling');}} style={{borderColor:ac.color,color:ac.color}}>
-                    🎲 Roll Dice →
-                  </button>
-                </div>
-              </>
-            )}
-
-          </div>
-        )}
-
-        {/* ── STEP 4+5: Roll dice & assign — combined screen ── */}
+        {/* ── STEP 3+4+5: Roll dice & assign — combined screen ── */}
         {(phase==='rolling' || phase==='allocating') && (
           <div className="bg-panel">
-            <p className="bg-eyebrow">Pre-Battle · {playerName}</p>
-            <h2 className="bg-title">Roll &amp; Assign Dice</h2>
+            <p className="bg-eyebrow">{ac.icon} {ac.label} · {GUILD_ICONS[guild]} {guild[0].toUpperCase()+guild.slice(1)} · {rarity[0].toUpperCase()+rarity.slice(1)}</p>
+            <h2 className="bg-title">Your Critter</h2>
+
+            {/* Name row */}
+            <div className="bg-name-row">
+              <input
+                className="bg-name-input"
+                type="text"
+                placeholder="Critter name…"
+                value={playerName}
+                onChange={e=>setPlayerName(e.target.value)}
+                maxLength={24}
+              />
+              <button className="bg-cta bg-cta--ghost"
+                onClick={()=>setPlayerName(pick(critterMode==='real' ? GUILD_NAMES[guild] : PLAYER_NAMES[alignment]))}
+                style={{whiteSpace:'nowrap'}}>
+                🎲 Rename
+              </button>
+            </div>
+
             <p className="bg-sub" style={{fontSize:'0.82rem',opacity:0.7}}>
               {allocDice.length===0
                 ? 'Click any die to roll all three and boost your stats.'
