@@ -1011,11 +1011,17 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
 
   // ─── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="bg-overlay" onClick={onClose}>
+    <div className="bg-overlay" onClick={phase === 'battle' || phase === 'result' || phase === 'perk' ? undefined : onClose}>
       <div className="bg-modal"
         style={{'--rarity-color':rc,'--rarity-glow':rg,'--align-color':ac.color,'--align-glow':ac.glow} as React.CSSProperties}
         onClick={e=>e.stopPropagation()}>
-        <button className="bg-close" onClick={onClose}>✕</button>
+        <button className="bg-close" onClick={() => {
+          if (phase === 'battle' || phase === 'result' || phase === 'perk') {
+            if (window.confirm('Abandon this battle? All progress will be lost.')) onClose();
+          } else {
+            onClose();
+          }
+        }}>✕</button>
 
         {/* Round + Stage badge */}
         {phase==='battle' && (
