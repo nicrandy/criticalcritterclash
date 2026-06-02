@@ -156,11 +156,6 @@ function App() {
         <div className="hero-inner">
           <p className="hero-eyebrow">The Game of Wild Beasts &amp; Epic Battles</p>
           <img src={logo} alt="Critical Critter Clash" className="hero-logo" />
-          <p className="hero-sub">
-            Collect powerful Critters.<br />
-            Build your party.<br />
-            Battle for glory.
-          </p>
           <button className="arena-banner" onClick={() => setGameOpen(true)} aria-label="Enter the Arena">
             <img src={arenaImg} alt="Arena" className="arena-banner-img" />
             <div className="arena-banner-overlay">
