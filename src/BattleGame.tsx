@@ -458,7 +458,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     const aMaxHp   = calcMaxHp(aiFinal.health);
     const aac      = ALIGN_CFG[aiAlign];
 
-    const pF: Fighter = { name:playerName||'Your Critter', rarity, alignment, guild: critterMode==='real' ? guild : undefined, base, final:pFinal, hp:pMaxHp, maxHp:pMaxHp };
+    const pF: Fighter = { name:playerName||'Your Critter', rarity, alignment, guild, base, final:pFinal, hp:pMaxHp, maxHp:pMaxHp };
     const aF: Fighter = { name:aiName, rarity:aiRarity, alignment:aiAlign, base:aiBase, final:aiFinal, hp:aMaxHp, maxHp:aMaxHp };
     setStage(1);
     setMaxPlayerHeals(3); setBonusAttackRoll(0); setBonusPassive(0); setPerkChoices([]);
@@ -745,7 +745,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setPerkChoices(shuffled.slice(0, 2));
     setPhase('perk');
     // Submit this stage's score globally (fire-and-forget)
-    submitStageScore(alignment, rarity, critterMode === 'real' ? guild : undefined);
+    submitStageScore(alignment, rarity, guild);
   };
 
   const applyPerkAndContinue = (perkId: string) => {
@@ -970,6 +970,21 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
                     <span className="bdb-rarity" style={active?{color:rarityColor[r]}:{}}>{r[0].toUpperCase()+r.slice(1)}</span>
                     <span className="bdb-diff">{cfg.diff}</span>
                     <span className="bdb-desc">{cfg.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="bg-section-lbl" style={{marginTop:'0.5rem'}}>Guild</div>
+            <div className="bg-guild-row">
+              {(['rabbit','fox','squirrel','rogue'] as Guild[]).map(g=>{
+                const active=guild===g;
+                return (
+                  <button key={g} onClick={()=>setGuild(g)}
+                    className={`bg-guild-btn ${active?'bg-guild-btn--on':''}`}
+                    style={active?{borderColor:ac.color,boxShadow:`0 0 16px ${ac.glow}`}:{}}>
+                    <span className="bgui-icon">{GUILD_ICONS[g]}</span>
+                    <span className="bgui-name">{g[0].toUpperCase()+g.slice(1)}</span>
                   </button>
                 );
               })}
