@@ -943,7 +943,8 @@ body {
 .bg-alloc-btn--ready:hover { background:rgba(255,255,255,0.04); color:var(--text-bright); }
 .bab-name { font-family:var(--font-heading); font-size:0.78rem; letter-spacing:0.08em; text-transform:uppercase; flex:1; }
 .bab-val  { font-family:var(--font-heading); font-size:0.9rem; color:var(--text-bright); }
-.bab-plus { color:var(--align-color,var(--gold)); margin:0 0.2rem; }
+.bab-plus          { color:var(--align-color,var(--gold)); margin:0 0.2rem; }
+.bab-plus--name    { color:#4ade80; }
 
 /* ── Arena layout — 3 stacked rows ── */
 .bg-arena { display:flex; flex-direction:column; gap:0.6rem; }
@@ -995,13 +996,21 @@ body {
   100% { opacity:0; transform:translateX(-50%) translateY(-60px) scale(0.8); }
 }
 
-/* Portrait circle */
+/* Portrait circle (emoji) — rounded square when a photo is set */
 .fg-portrait {
   font-size:2rem; line-height:1;
   width:52px; height:52px; border-radius:50%;
   border:2px solid var(--align-color,var(--gold));
   display:flex; align-items:center; justify-content:center;
   background:var(--bg-mid); flex-shrink:0;
+  overflow:hidden;
+  transition:border-radius 0.2s;
+}
+.fg-portrait--photo {
+  border-radius:10px;
+}
+.fg-portrait-img {
+  width:100%; height:100%; object-fit:cover; display:block;
 }
 
 /* Body: fills the remaining horizontal space */
@@ -1057,6 +1066,24 @@ body {
 .fg-sc-lbl     { font-size:0.58rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-dim); }
 .fg-sc-val     { font-family:var(--font-heading); font-size:0.8rem; font-weight:700; color:var(--text-bright); }
 .fg-si-bonus   { font-size:0.65rem; color:var(--align-color,var(--gold)); }
+
+/* Boss-boosted stat chip */
+.fg-stat-chip--boss { border-color:rgba(74,222,128,0.4); background:rgba(74,222,128,0.07); }
+.fg-stat-chip--boss .fg-sc-val { color:#4ade80; }
+.fg-sc-boost { font-size:0.58rem; color:#4ade80; margin-left:2px; vertical-align:super; }
+
+/* AI resource indicators (heal bottle + defend shield) */
+.fg-resources {
+  display:flex; align-items:center; gap:0.4rem;
+  margin-top:0.15rem; margin-bottom:0.1rem;
+}
+.fg-res {
+  font-size:0.9rem; line-height:1;
+  transition: opacity 0.4s, filter 0.4s;
+}
+.fg-res--heal   { filter: drop-shadow(0 0 4px rgba(248,113,113,0.7)); }
+.fg-res--defend { filter: drop-shadow(0 0 4px rgba(96,165,250,0.7)); }
+.fg-res--used   { opacity:0.18; filter:grayscale(1); }
 
 /* ── Spotlight panel — full-width bottom banner ── */
 .sp-panel {
@@ -1161,17 +1188,78 @@ body {
 .bg-roll-hint strong { color:var(--text-bright); }
 
 /* AI reveal strip */
-.bg-ai-reveal {
-  display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; justify-content:center;
-  padding:0.45rem 1rem;
-  background:var(--bg-deep); border:1px solid var(--border); border-radius:8px;
-  width:100%; font-size:0.82rem; color:var(--text-mid);
+/* ── Turn-order spin wheel ── */
+.bg-turn-spin {
+  display:flex; flex-direction:column; align-items:center; gap:0.4rem;
+  padding:0.55rem 1rem;
+  background:var(--bg-deep); border:1px solid var(--border); border-radius:10px;
+  width:100%;
 }
-.bg-ai-reveal-you  { color:var(--text-mid); }
-.bg-ai-reveal-you strong { color:var(--align-color,var(--gold)); font-family:var(--font-heading); }
-.bg-ai-reveal-sep  { color:var(--text-dim); }
-.bg-ai-reveal-act  { color:var(--text-mid); }
-.bg-ai-reveal-act strong { color:#f87171; font-family:var(--font-heading); }
+.bg-ts-row {
+  display:flex; align-items:center; gap:0.75rem; width:100%; justify-content:center;
+}
+.bg-ts-chip {
+  font-family:var(--font-heading); font-size:0.78rem; font-weight:700;
+  padding:0.25rem 0.75rem; border-radius:8px;
+  border:1px solid var(--border); color:var(--text-mid);
+  transition: border-color 0.3s, color 0.3s, box-shadow 0.3s;
+  white-space:nowrap;
+}
+.bg-ts-chip--won {
+  border-color:var(--gold); color:var(--gold);
+  box-shadow:0 0 12px rgba(201,168,76,0.5);
+}
+.bg-ts-chip--lost { opacity:0.4; }
+.bg-ts-mid { display:flex; align-items:center; justify-content:center; width:36px; }
+/* Spinning half-gold / half-red circle — the "wheel" */
+.bg-ts-spinner {
+  width:26px; height:26px; border-radius:50%;
+  border:3px solid transparent;
+  border-top-color:var(--gold);
+  border-right-color:#ef4444;
+  border-bottom-color:var(--gold);
+  border-left-color:#ef4444;
+  animation: tsWheelSpin 0.38s linear infinite;
+}
+@keyframes tsWheelSpin {
+  from { transform:rotate(0deg); }
+  to   { transform:rotate(360deg); }
+}
+.bg-ts-arrow {
+  font-size:1.1rem; color:var(--gold);
+  animation: tsArrowPop 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes tsArrowPop {
+  0%   { transform:scale(0); opacity:0; }
+  100% { transform:scale(1); opacity:1; }
+}
+.bg-ts-label {
+  font-size:0.72rem; color:var(--text-mid); font-style:italic;
+}
+
+/* AI action reveal — visual D6 + icon strip */
+.bg-ai-reveal {
+  display:flex; align-items:center; justify-content:center; gap:1.25rem;
+  padding:0.55rem 1rem;
+  background:var(--bg-deep); border:1px solid var(--border); border-radius:10px;
+  width:100%;
+}
+.bg-air-side {
+  display:flex; flex-direction:column; align-items:center; gap:0.25rem;
+  min-width:52px;
+}
+.bg-air-tag {
+  font-size:0.58rem; letter-spacing:0.14em; text-transform:uppercase;
+  color:var(--text-dim);
+}
+.bg-air-action { font-size:1.4rem; line-height:1; }
+/* tint the rival die red */
+.bg-air-side--rival .bg-d6 .d6-face { fill:rgba(127,29,29,0.35); stroke:rgba(239,68,68,0.5); }
+.bg-air-side--rival .bg-d6 .d6-dot  { fill:#fca5a5; }
+.bg-air-vs {
+  font-family:var(--font-heading); font-size:0.7rem; font-weight:700;
+  color:var(--text-dim); letter-spacing:0.1em;
+}
 
 /* ── Result ── */
 .bg-result    { gap:1rem; }
@@ -1195,9 +1283,20 @@ body {
   font-family:var(--font-heading); font-size:0.62rem; font-weight:700;
   z-index:5; pointer-events:none; white-space:nowrap;
 }
-.bg-badge-rnd { color:var(--gold); }
-.bg-badge-dot { color:var(--text-dim); font-weight:400; }
-.bg-badge-stg { color:var(--text-mid); }
+.bg-badge-rnd  { color:var(--gold); }
+.bg-badge-dot  { color:var(--text-dim); font-weight:400; }
+.bg-badge-stg  { color:var(--text-mid); }
+.bg-badge-boss {
+  background:linear-gradient(135deg,#7f1d1d,#ef4444);
+  color:#fff; padding:0.1rem 0.45rem; border-radius:999px;
+  font-size:0.6rem; letter-spacing:0.08em;
+  box-shadow:0 0 10px rgba(239,68,68,0.6);
+  animation: bossPulse 1.5s ease-in-out infinite;
+}
+@keyframes bossPulse {
+  0%,100% { box-shadow:0 0 8px rgba(239,68,68,0.5); }
+  50%      { box-shadow:0 0 18px rgba(239,68,68,0.9); }
+}
 
 /* ── Section label (above alignment / difficulty rows) ── */
 .bg-section-lbl {
@@ -1769,6 +1868,43 @@ body {
 }
 .bg-name-input::placeholder { color:var(--text-dim); }
 .bg-name-input:focus { border-color:var(--align-color,var(--gold-dim)); }
+
+/* ── Name builder — attribute + critter cards ─────── */
+.bg-name-builder {
+  display:grid; grid-template-columns:1fr 1fr; gap:0.6rem;
+  width:100%; margin-top:0.4rem;
+}
+.bg-nb-card {
+  display:flex; flex-direction:column; align-items:center; gap:0.35rem;
+  padding:0.75rem 0.5rem;
+  background:rgba(255,255,255,0.03);
+  border:1px solid var(--border); border-radius:12px;
+}
+.bg-nbc-label {
+  font-size:0.58rem; letter-spacing:0.16em; text-transform:uppercase;
+  color:var(--text-dim);
+}
+.bg-nbc-word {
+  font-family:var(--font-heading); font-size:1.15rem; font-weight:700;
+}
+.bg-nbc-bonus {
+  font-size:0.72rem; font-weight:600;
+  color:#4ade80;
+  background:rgba(74,222,128,0.1);
+  border:1px solid rgba(74,222,128,0.25);
+  border-radius:999px; padding:0.1rem 0.55rem;
+}
+.bg-nbc-reroll {
+  font-size:0.72rem; padding:0.25rem 0.65rem;
+  border:1px solid var(--border-light); border-radius:6px;
+  background:transparent; color:var(--text-mid);
+  cursor:pointer; transition:border-color 0.2s, color 0.2s;
+  font-family:var(--font-body);
+}
+.bg-nbc-reroll:hover:not(:disabled) {
+  border-color:var(--align-color,var(--gold)); color:var(--align-color,var(--gold));
+}
+.bg-nbc-reroll:disabled { opacity:0.35; cursor:default; }
 
 /* ── RESPONSIVE ───────────────────────────────────── */
 @media (max-width: 640px) {

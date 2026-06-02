@@ -243,7 +243,7 @@ function App() {
         <div className="section-header">
           <p className="section-eyebrow">Find Us In the Wild</p>
           <h2 className="section-title">Upcoming Events</h2>
-          <p className="section-sub">Come battle in person. Find us at these events.</p>
+          <p className="section-sub">Buy at these events — Limited Critters available at each location.</p>
         </div>
 
         {eventsLoading ? (

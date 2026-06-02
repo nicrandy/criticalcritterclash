@@ -2,6 +2,13 @@ import { useState, useRef, useEffect } from 'react';
 import { rarityColor, rarityGlow } from './critters';
 import { submitStageScore } from './supabaseClient';
 
+// ─── Critter photos (used as boss portraits) ──────────────────────────────────
+const _critterMods = import.meta.glob(
+  '../images/product_images/critters/*.{png,jpg,jpeg,gif,webp}',
+  { eager: true, import: 'default' }
+) as Record<string, string>;
+const CRITTER_PHOTOS = Object.values(_critterMods).filter(Boolean) as string[];
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Rarity     = 'rare' | 'unique' | 'legendary';
 type StatKey    = 'strength' | 'health' | 'stamina';
@@ -16,6 +23,7 @@ interface Stats   { strength: number; health: number; stamina: number; }
 interface Fighter {
   name: string; rarity: Rarity; alignment: Alignment; guild?: Guild;
   base: Stats; final: Stats; hp: number; maxHp: number;
+  bossBoostStat?: StatKey; img?: string;
 }
 interface LogEntry {
   id: number;
@@ -28,7 +36,8 @@ interface Spotlight {
   type: 'attack' | 'damage' | 'critical' | 'block' | 'heal' | 'idle';
 }
 interface FloatDmg { val: number; color: string; side: 'player' | 'ai'; id: number; }
-interface PerkDef  { id: string; name: string; icon: string; desc: string; }
+interface PerkDef  { id: string; name: string; icon: string; desc: string; value?: number; }
+interface NamePart { word: string; bonus: Partial<Record<StatKey,number>>; bonusLabel: string; }
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 const MOVES: Record<Alignment, Record<Rarity, string[]>> = {
@@ -109,6 +118,67 @@ const ALL_PERKS: PerkDef[] = [
   { id:'second-wind', name:'Second Wind', icon:'🌬️', desc:'Fully restore HP to maximum' },
   { id:'iron-skin',   name:'Iron Skin',   icon:'🪨', desc:'+1 passive damage reduction permanently' },
   { id:'relentless',  name:'Relentless',  icon:'⚡', desc:'+1 added to every attack roll' },
+];
+
+// ─── Name builder pools ───────────────────────────────────────────────────────
+const ADJECTIVES: Record<Alignment, NamePart[]> = {
+  good: [
+    { word:'Holy',      bonus:{strength:1}, bonusLabel:'+1 STR' },
+    { word:'Divine',    bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+    { word:'Blessed',   bonus:{health:1},   bonusLabel:'+1 HP'  },
+    { word:'Sacred',    bonus:{strength:1}, bonusLabel:'+1 STR' },
+    { word:'Pure',      bonus:{health:1},   bonusLabel:'+1 HP'  },
+    { word:'Gilded',    bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+    { word:'Noble',     bonus:{strength:1}, bonusLabel:'+1 STR' },
+    { word:'Radiant',   bonus:{health:1},   bonusLabel:'+1 HP'  },
+    { word:'Hallowed',  bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+    { word:'Celestial', bonus:{health:1},   bonusLabel:'+1 HP'  },
+    { word:'Dawn',      bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+    { word:'True',      bonus:{strength:1}, bonusLabel:'+1 STR' },
+    { word:'Brave',     bonus:{health:1},   bonusLabel:'+1 HP'  },
+    { word:'Gleaming',  bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+    { word:'Light',     bonus:{strength:1}, bonusLabel:'+1 STR' },
+  ],
+  evil: [
+    { word:'Cursed',    bonus:{strength:1}, bonusLabel:'+1 STR' },
+    { word:'Shadow',    bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+    { word:'Void',      bonus:{health:1},   bonusLabel:'+1 HP'  },
+    { word:'Bone',      bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+    { word:'Plague',    bonus:{strength:1}, bonusLabel:'+1 STR' },
+    { word:'Fell',      bonus:{health:1},   bonusLabel:'+1 HP'  },
+    { word:'Doom',      bonus:{strength:1}, bonusLabel:'+1 STR' },
+    { word:'Blight',    bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+    { word:'Dark',      bonus:{health:1},   bonusLabel:'+1 HP'  },
+    { word:'Wicked',    bonus:{strength:1}, bonusLabel:'+1 STR' },
+    { word:'Grim',      bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+    { word:'Corrupt',   bonus:{health:1},   bonusLabel:'+1 HP'  },
+    { word:'Vile',      bonus:{strength:1}, bonusLabel:'+1 STR' },
+    { word:'Dread',     bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+    { word:'Hollow',    bonus:{health:1},   bonusLabel:'+1 HP'  },
+  ],
+};
+
+const CRITTERS: NamePart[] = [
+  { word:'Fox',     bonus:{strength:1}, bonusLabel:'+1 STR' },
+  { word:'Bear',    bonus:{health:1},   bonusLabel:'+1 HP'  },
+  { word:'Wolf',    bonus:{strength:1}, bonusLabel:'+1 STR' },
+  { word:'Elk',     bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+  { word:'Toad',    bonus:{health:1},   bonusLabel:'+1 HP'  },
+  { word:'Hawk',    bonus:{strength:1}, bonusLabel:'+1 STR' },
+  { word:'Raven',   bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+  { word:'Stag',    bonus:{health:1},   bonusLabel:'+1 HP'  },
+  { word:'Hare',    bonus:{strength:1}, bonusLabel:'+1 STR' },
+  { word:'Badger',  bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+  { word:'Owl',     bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+  { word:'Deer',    bonus:{health:1},   bonusLabel:'+1 HP'  },
+  { word:'Lynx',    bonus:{strength:1}, bonusLabel:'+1 STR' },
+  { word:'Drake',   bonus:{strength:2}, bonusLabel:'+2 STR' },
+  { word:'Serpent', bonus:{stamina:2},  bonusLabel:'+2 DEF' },
+  { word:'Boar',    bonus:{health:2},   bonusLabel:'+2 HP'  },
+  { word:'Jackal',  bonus:{strength:1}, bonusLabel:'+1 STR' },
+  { word:'Moth',    bonus:{health:1},   bonusLabel:'+1 HP'  },
+  { word:'Crow',    bonus:{stamina:1},  bonusLabel:'+1 DEF' },
+  { word:'Viper',   bonus:{strength:1}, bonusLabel:'+1 STR' },
 ];
 
 // ─── Guild data ───────────────────────────────────────────────────────────────
@@ -197,8 +267,8 @@ function aiAllocateDice(base: Stats, dice: number[]): Stats {
 }
 
 function pickAIAction(ai: Fighter, _p: Fighter, last: Action | null, healCount: number, hasDefended: boolean): Action {
-  const canHeal    = healCount < 3;
-  const canDefend  = !hasDefended;
+  const canHeal    = healCount < 1;   // AI gets exactly one heal
+  const canDefend  = !hasDefended;    // AI gets exactly one defend
   if (!canHeal && !canDefend) return 'attack';
   if (!canHeal) return last === 'attack' && canDefend && Math.random() < 0.4 ? 'defend' : 'attack';
   if (!canDefend) {
@@ -251,9 +321,10 @@ function HPBar({ hp, maxHp }: { hp: number; maxHp: number }) {
 }
 
 // ─── FighterCard — compact horizontal strip ───────────────────────────────────
-function FighterCard({ fighter, label, animStep, side, floatDmg, shield, shieldMax }: {
+function FighterCard({ fighter, label, animStep, side, floatDmg, shield, shieldMax, healsLeft, canDefend }: {
   fighter: Fighter; label: string; animStep: AnimStep;
   side: 'player'|'ai'; floatDmg: FloatDmg|null; shield: number; shieldMax: number;
+  healsLeft?: number; canDefend?: boolean;
 }) {
   const attacking = (side==='player'&&animStep==='p-act')||(side==='ai'&&animStep==='a-act');
   const hit       = (side==='ai'&&animStep==='a-hit')||(side==='player'&&animStep==='p-hit');
@@ -270,8 +341,11 @@ function FighterCard({ fighter, label, animStep, side, floatDmg, shield, shieldM
           {floatDmg!.val >= 0 ? `-${floatDmg!.val}` : `+${-floatDmg!.val}`}
         </span>
       )}
-      <div className="fg-portrait" style={{borderColor:ac.color,boxShadow:`0 0 10px ${ac.glow}`}}>
-        {portrait}
+      <div className={`fg-portrait${fighter.img ? ' fg-portrait--photo' : ''}`}
+        style={{borderColor:ac.color,boxShadow:`0 0 10px ${ac.glow}`}}>
+        {fighter.img
+          ? <img src={fighter.img} alt={fighter.name} className="fg-portrait-img" />
+          : portrait}
       </div>
       <div className="fg-body">
         <div className="fg-body-top">
@@ -302,16 +376,30 @@ function FighterCard({ fighter, label, animStep, side, floatDmg, shield, shieldM
           </div>
         )}
         <HPBar hp={fighter.hp} maxHp={fighter.maxHp}/>
+        {/* AI resource indicators — shown for rival card only */}
+        {(healsLeft !== undefined || canDefend !== undefined) && (
+          <div className="fg-resources">
+            <span className={`fg-res fg-res--heal${healsLeft! > 0 ? '' : ' fg-res--used'}`} title={healsLeft! > 0 ? 'Heal available' : 'Heal used'}>
+              🧪
+            </span>
+            <span className={`fg-res fg-res--defend${canDefend ? '' : ' fg-res--used'}`} title={canDefend ? 'Block available' : 'Block used'}>
+              🛡
+            </span>
+          </div>
+        )}
         <div className="fg-stats-row">
           {(['strength','health','stamina'] as StatKey[]).map(k => {
             const icons:Record<StatKey,string> = {strength:'⚔️',health:'❤️',stamina:'🛡️'};
             const lbls:Record<StatKey,string>  = {strength:'STR',health:'HP',stamina:'DEF'};
             const val = fighter.final[k];
+            const boosted = fighter.bossBoostStat === k;
             return (
-              <div key={k} className="fg-stat-chip">
+              <div key={k} className={`fg-stat-chip${boosted?' fg-stat-chip--boss':''}`}>
                 <span className="fg-sc-icon">{icons[k]}</span>
                 <span className="fg-sc-lbl">{lbls[k]}</span>
-                <span className="fg-sc-val">{val}</span>
+                <span className="fg-sc-val">
+                  {val}{boosted && <span className="fg-sc-boost">▲5</span>}
+                </span>
               </div>
             );
           })}
@@ -388,6 +476,17 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   const [bonusAttackRoll, setBonusAttackRoll] = useState(0);
   const [bonusPassive,    setBonusPassive]    = useState(0);
   const [perkChoices,     setPerkChoices]     = useState<PerkDef[]>([]);
+  const [isBoss,          setIsBoss]          = useState(false);
+
+  // Turn-order spin wheel
+  const [turnSpinning, setTurnSpinning] = useState(false);
+  const [turnFirst,    setTurnFirst]    = useState<'player'|'ai'|null>(null);
+
+  // Name builder (generated critter mode)
+  const [selectedAdj,      setSelectedAdj]      = useState<NamePart|null>(null);
+  const [selectedCritter,  setSelectedCritter]  = useState<NamePart|null>(null);
+  const [adjRollsLeft,     setAdjRollsLeft]     = useState(3);
+  const [critterRollsLeft, setCritterRollsLeft] = useState(3);
 
   const logRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if(logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [log]);
@@ -406,9 +505,34 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
       stamina:  rollStatForRarity(rarity),
     };
     setBase(newBase);
-    setPlayerName(pick(PLAYER_NAMES[alignment]));
+    // Pick initial adjective + critter; player can reroll each up to 3 times
+    const initAdj     = pick(ADJECTIVES[alignment]);
+    const initCritter = pick(CRITTERS);
+    setSelectedAdj(initAdj);
+    setSelectedCritter(initCritter);
+    setAdjRollsLeft(3);
+    setCritterRollsLeft(3);
+    setPlayerName(`${initAdj.word} ${initCritter.word}`);
     setAllocDice([]); setAssigns([null,null,null]); setSelDie(null); setAllocSettled(false);
     setPhase('rolling');
+  };
+
+  const handleRerollAdj = () => {
+    if (adjRollsLeft <= 0) return;
+    const pool = ADJECTIVES[alignment].filter(a => a.word !== selectedAdj?.word);
+    const next = pick(pool.length ? pool : ADJECTIVES[alignment]);
+    setSelectedAdj(next);
+    setAdjRollsLeft(r => r - 1);
+    setPlayerName(`${next.word} ${selectedCritter?.word ?? ''}`);
+  };
+
+  const handleRerollCritter = () => {
+    if (critterRollsLeft <= 0) return;
+    const pool = CRITTERS.filter(c => c.word !== selectedCritter?.word);
+    const next = pick(pool.length ? pool : CRITTERS);
+    setSelectedCritter(next);
+    setCritterRollsLeft(r => r - 1);
+    setPlayerName(`${selectedAdj?.word ?? ''} ${next.word}`);
   };
 
   // ── Pre-battle dice ─────────────────────────────────────────────────────────
@@ -442,7 +566,15 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   // ── Begin battle ────────────────────────────────────────────────────────────
   const handleBeginBattle = () => {
     if (!allAssigned) return;
-    const pFinal: Stats = { strength:finalStat('strength'), health:finalStat('health'), stamina:finalStat('stamina') };
+    // Name bonus: adjective + critter bonuses (generated mode only)
+    const nb = (k: StatKey) => critterMode === 'generated'
+      ? (selectedAdj?.bonus[k] ?? 0) + (selectedCritter?.bonus[k] ?? 0)
+      : 0;
+    const pFinal: Stats = {
+      strength: finalStat('strength') + nb('strength'),
+      health:   finalStat('health')   + nb('health'),
+      stamina:  finalStat('stamina')  + nb('stamina'),
+    };
     const aiAlign: Alignment = alignment==='good'?'evil':'good';
     const { base: aiBase, final: aiFinal, rarity: aiRarity } = generateAIForStage(1);
     const aiName   = pick(AI_NAMES[aiAlign][aiRarity]);
@@ -452,7 +584,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
 
     const pF: Fighter = { name:playerName||'Your Critter', rarity, alignment, guild, base, final:pFinal, hp:pMaxHp, maxHp:pMaxHp };
     const aF: Fighter = { name:aiName, rarity:aiRarity, alignment:aiAlign, base:aiBase, final:aiFinal, hp:aMaxHp, maxHp:aMaxHp };
-    setStage(1);
+    setStage(1); setIsBoss(false);
     setMaxPlayerHeals(3); setBonusAttackRoll(0); setBonusPassive(0); setPerkChoices([]);
     setPlayer(pF); setAI(aF); setRound(1); setWinner(null);
     setPlayerHeals(0); setAiHeals(0);
@@ -490,15 +622,17 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
 
 
   // ── Combat ──────────────────────────────────────────────────────────────────
+  // Action selection auto-triggers the dice roll and turn-order spin immediately
   const handleChooseAction = (action: Action) => {
-    setPlayerAction(action); setCombatRoll(null); setCombatSettled(false);
+    if (combatRolling || !player || !ai) return;
+    setPlayerAction(action);
+    setCombatRoll(null); setCombatSettled(false);
     setRevealedAIAct(null); setRevealedAIRoll(null);
+    setTurnSpinning(false); setTurnFirst(null);
     setBattleStep('player-rolling');
-  };
 
-  const handleCombatRoll = () => {
-    if (combatRolling||!player||!ai||!playerAction) return;
-    const snapP=player, snapA=ai, snapAct=playerAction, snapAiH=aiHeals, snapAiD=aiDefended, snapPS=playerShield, snapAS=aiShield;
+    // Snapshot mutable state for use inside async closures
+    const snapP=player, snapA=ai, snapAiH=aiHeals, snapAiD=aiDefended, snapPS=playerShield, snapAS=aiShield;
     setCombatRolling(true);
     const finalRoll = rollD6();
     const schedule  = [...Array(12).fill(18),...Array(8).fill(40),...Array(5).fill(80),...Array(2).fill(160),...Array(2).fill(280)];
@@ -506,20 +640,33 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     const tick = () => {
       if (i < schedule.length) { setCombatRoll(rollD6()); setTimeout(tick, schedule[i++]); }
       else {
+        // Die settles — show result, pick AI move, then spin for turn order
         setCombatRoll(finalRoll); setCombatRolling(false); setCombatSettled(true);
         const aiAct = pickAIAction(snapA, snapP, lastPlayerAct, snapAiH, snapAiD);
         const aiR   = rollD6();
         setRevealedAIAct(aiAct); setRevealedAIRoll(aiR);
+        // RNG turn order: 50 / 50 each round
+        const goesFirst: 'player' | 'ai' = Math.random() < 0.5 ? 'player' : 'ai';
+        // After 400 ms showing the settled die, start the spin wheel
         setTimeout(() => {
           setCombatSettled(false);
-          resolveRound(snapAct, finalRoll, aiAct, aiR, snapP, snapA, snapPS, snapAS);
-        }, 1200);
+          setTurnSpinning(true);
+          // Spin for 900 ms, then reveal result for 600 ms before combat begins
+          setTimeout(() => {
+            setTurnSpinning(false);
+            setTurnFirst(goesFirst);
+            setTimeout(() => {
+              setTurnFirst(null);
+              resolveRound(action, finalRoll, aiAct, aiR, snapP, snapA, snapPS, snapAS, goesFirst);
+            }, 600);
+          }, 900);
+        }, 400);
       }
     };
     tick();
   };
 
-  const resolveRound = (pAct:Action, pRoll:number, aAct:Action, aRoll:number, curP:Fighter, curA:Fighter, curPS:number, curAS:number) => {
+  const resolveRound = (pAct:Action, pRoll:number, aAct:Action, aRoll:number, curP:Fighter, curA:Fighter, curPS:number, curAS:number, goesFirst:'player'|'ai'='player') => {
     setBattleStep('animating'); setLastPlayerAct(pAct);
     if (pAct === 'heal')   setPlayerHeals(h => h + 1);
     if (aAct === 'heal')   setAiHeals(h => h + 1);
@@ -562,8 +709,9 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
       }
     }
 
-    const pHeal = pAct === 'heal' ? pRoll + curP.final.health : 0;
-    const aHeal = aAct === 'heal' ? aRoll + curA.final.health : 0;
+    // Heal = 30% base + 10% per pip; roll 4 → 70% of max HP
+    const pHeal = pAct === 'heal' ? Math.floor(curP.maxHp * (0.30 + 0.10 * pRoll)) : 0;
+    const aHeal = aAct === 'heal' ? Math.floor(curA.maxHp * (0.30 + 0.10 * aRoll)) : 0;
 
     // Final shield values after all combat
     const pShieldFinal = pShieldRun;
@@ -574,8 +722,15 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     const playerHpMid   = Math.min(curP.maxHp, Math.max(0, curP.hp + pHeal));
     const aiHpFinal     = Math.min(curA.maxHp, Math.max(0, aiHpMid + aHeal));
     const playerHpFinal = Math.min(curP.maxHp, Math.max(0, playerHpMid - aDmg));
-    const aiDefeated    = aiHpMid <= 0;
-    const playerDefeated = !aiDefeated && playerHpFinal <= 0;
+    // Defeat priority follows turn order: whoever acts first can kill the other before they strike back
+    let aiDefeated: boolean, playerDefeated: boolean;
+    if (goesFirst === 'ai') {
+      playerDefeated = playerHpFinal <= 0;
+      aiDefeated     = !playerDefeated && aiHpMid <= 0;
+    } else {
+      aiDefeated     = aiHpMid <= 0;
+      playerDefeated = !aiDefeated && playerHpFinal <= 0;
+    }
 
     const pMove = pAct==='attack' ? pick(MOVES[curP.alignment][curP.rarity])
       : pAct==='defend' ? pick(DEFEND_NAMES[curP.alignment]) : pick(HEAL_NAMES[curP.alignment]);
@@ -592,10 +747,10 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
         text:`${ac.icon} ${pMove}: roll ${pRoll}+${curP.final.strength}${pCrit?'+3🎯':''}${bonusAttackRoll>0?`+${bonusAttackRoll}⚡`:''}=${pRoll+curP.final.strength+(pCrit?3:0)+bonusAttackRoll}${sNote} → ${pDmg} dmg`});
     } else if (pAct==='defend') {
       entries.push({id:uid(),type:'block',who:'player',
-        text:`🛡️ ${pMove}: +${pShieldGain} shield (${curP.final.stamina} STA + roll ${pRoll})`});
+        text:`🛡️ ${pMove}: +${pShieldGain} shield (${curP.final.stamina} DEF + roll ${pRoll})`});
     } else {
       entries.push({id:uid(),type:'heal',who:'player',
-        text:`💊 ${pMove}: +${pHeal} HP (You: ${playerHpFinal} HP)`});
+        text:`💊 ${pMove}: +${pHeal} HP (roll ${pRoll} · ${Math.round((0.30+0.10*pRoll)*100)}% of max)`});
     }
 
     if (aAct==='attack') {
@@ -604,20 +759,20 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
         text:`${aac.icon} ${aMove}: roll ${aRoll}+${curA.final.strength}${aCrit?'+3🎯':''}=${aRoll+curA.final.strength+(aCrit?3:0)}${sNote} → ${aDmg} dmg`});
     } else if (aAct==='defend') {
       entries.push({id:uid(),type:'block',who:'ai',
-        text:`🛡️ ${curA.name} ${aMove}: +${aShieldGain} shield (${curA.final.stamina} STA + roll ${aRoll})`});
+        text:`🛡️ ${curA.name} ${aMove}: +${aShieldGain} shield (${curA.final.stamina} DEF + roll ${aRoll})`});
     } else {
       entries.push({id:uid(),type:'heal',who:'ai',
-        text:`💊 ${curA.name} ${aMove}: +${aHeal} HP (${curA.name}: ${aiHpFinal} HP)`});
+        text:`💊 ${curA.name} ${aMove}: +${aHeal} HP (roll ${aRoll} · ${Math.round((0.30+0.10*aRoll)*100)}% of max)`});
     }
     if (aiDefeated||playerDefeated)
       entries.push({id:uid(),type:'info',text:aiDefeated?`🏆 ${curA.name} defeated! Victory!`:`💀 ${curP.name} falls! ${aac.icon} ${curA.name} wins.`});
 
     // ── Animation ─────────────────────────────────────────────────────────────
     const pSpotType: Spotlight['type'] = pAct==='attack'?(pCrit?'critical':'attack'):pAct==='defend'?'block':'heal';
-    setAnimStep('p-act');
-    showSpot({title:pMove, detail:`${ac.icon} ${ACTION_CFG[pAct].label}`, color:ac.color, type:pSpotType});
+    const aSpotType: Spotlight['type'] = aAct==='attack'?(aCrit?'critical':'attack'):aAct==='defend'?'block':'heal';
 
-    setTimeout(() => {
+    // Helper: apply player's action visually (a-hit)
+    const showPlayerHit = () => {
       setAnimStep('a-hit');
       if (pAct==='attack') {
         if (pDmg > 0) {
@@ -639,50 +794,86 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
         setPlayer(p=>p?{...p,hp:playerHpMid}:p);
         showSpot({title:`+${pHeal} HP`,detail:`You: ${playerHpMid} HP`,color:'#4ade80',type:'heal'});
       } else {
-        // player defended — show the new shield (before AI attacks)
         setPlayerShield(curPS + pShieldGain);
         showSpot({title:`🛡️ +${pShieldGain} Shield`,
-          detail:`${curP.final.stamina} STA + roll ${pRoll} · Total: ${curPS + pShieldGain}`,color:'#6ee7b7',type:'block'});
+          detail:`${curP.final.stamina} DEF + roll ${pRoll} · Total: ${curPS + pShieldGain}`,color:'#6ee7b7',type:'block'});
       }
+    };
 
-      if (aiDefeated) { setTimeout(()=>finishRound(entries,playerHpFinal,aiHpFinal,'player'),2000); return; }
+    // Helper: apply AI's action visually (p-hit)
+    const showAIHit = () => {
+      setAnimStep('p-hit');
+      if (aAct==='attack') {
+        if (aDmg > 0) {
+          setFloatDmg({val:aDmg,color:'#f87171',side:'player',id:uid()});
+          setPlayer(p=>p?{...p,hp:playerHpFinal}:p);
+          setPlayerShield(pShieldFinal);
+          const absNote = pShieldAbsorb > 0 ? ` · shield −${pShieldAbsorb}` : '';
+          showSpot({title:aCrit?`🎯 Critical! −${aDmg}`:`Hit! −${aDmg}`,
+            detail:`You: ${playerHpFinal} HP${absNote}`,color:aac.color,type:aCrit?'critical':'damage'});
+        } else if (pShieldAbsorb > 0) {
+          setPlayerShield(pShieldFinal);
+          showSpot({title:'🛡️ Shield Held!',
+            detail:`Your shield absorbed it all · ${pShieldFinal} remaining`,color:'#6ee7b7',type:'block'});
+        } else {
+          showSpot({title:'🛡️ Resisted!',detail:'Passive resist absorbed the hit',color:'#6ee7b7',type:'block'});
+        }
+      } else if (aAct==='heal') {
+        setFloatDmg({val:-aHeal,color:'#4ade80',side:'ai',id:uid()});
+        setAI(p=>p?{...p,hp:aiHpFinal}:p);
+        showSpot({title:`+${aHeal} HP`,detail:`${curA.name}: ${aiHpFinal} HP`,color:'#4ade80',type:'heal'});
+      } else {
+        // Shield bar was already raised at announcement time (both branches set it
+        // synchronously when a-act fires). Just confirm with the spotlight here.
+        showSpot({title:`🛡️ +${aShieldGain} Shield`,
+          detail:`${curA.final.stamina} DEF + roll ${aRoll} · +${aShieldGain} to barrier`,color:'#6ee7b7',type:'block'});
+      }
+    };
 
-      setTimeout(()=>{
-        const aSpotType: Spotlight['type'] = aAct==='attack'?(aCrit?'critical':'attack'):aAct==='defend'?'block':'heal';
-        setAnimStep('a-act');
-        showSpot({title:aMove,detail:`${aac.icon} ${ACTION_CFG[aAct].label}`,color:aac.color,type:aSpotType});
+    if (goesFirst === 'ai') {
+      // ── AI goes first (a-act → p-hit → p-act → a-hit) ────────────────────────
+      // If AI is defending, show the shield bar going up immediately at announcement time
+      if (aAct === 'defend') setAiShield(curAS + aShieldGain);
+      setAnimStep('a-act');
+      showSpot({title:aMove, detail:`${aac.icon} ${ACTION_CFG[aAct].label}${isBoss?' · 👑 Boss':''}`, color:aac.color, type:aSpotType});
 
-        setTimeout(()=>{
-          setAnimStep('p-hit');
-          if (aAct==='attack') {
-            if (aDmg > 0) {
-              setFloatDmg({val:aDmg,color:'#f87171',side:'player',id:uid()});
-              setPlayer(p=>p?{...p,hp:playerHpFinal}:p);
-              setPlayerShield(pShieldFinal);
-              const absNote = pShieldAbsorb > 0 ? ` · shield −${pShieldAbsorb}` : '';
-              showSpot({title:aCrit?`🎯 Critical! −${aDmg}`:`Hit! −${aDmg}`,
-                detail:`You: ${playerHpFinal} HP${absNote}`,color:aac.color,type:aCrit?'critical':'damage'});
-            } else if (pShieldAbsorb > 0) {
-              setPlayerShield(pShieldFinal);
-              showSpot({title:'🛡️ Shield Held!',
-                detail:`Your shield absorbed it all · ${pShieldFinal} remaining`,color:'#6ee7b7',type:'block'});
-            } else {
-              showSpot({title:'🛡️ Resisted!',detail:'Passive resist absorbed the hit',color:'#6ee7b7',type:'block'});
-            }
-          } else if (aAct==='heal') {
-            setFloatDmg({val:-aHeal,color:'#4ade80',side:'ai',id:uid()});
-            setAI(p=>p?{...p,hp:aiHpFinal}:p);
-            showSpot({title:`+${aHeal} HP`,detail:`${curA.name}: ${aiHpFinal} HP`,color:'#4ade80',type:'heal'});
-          } else {
-            // AI defended — show the new shield
-            setAiShield(aShieldFinal);
-            showSpot({title:`🛡️ +${aShieldGain} Shield`,
-              detail:`${curA.final.stamina} STA + roll ${aRoll} · ${curA.name}: ${aShieldFinal} shield`,color:'#6ee7b7',type:'block'});
-          }
-          setTimeout(()=>finishRound(entries,playerHpFinal,aiHpFinal,playerDefeated?'ai':null),2000);
-        },1000);
-      },2000);
-    },1000);
+      setTimeout(() => {
+        showAIHit();
+        if (playerDefeated) { setTimeout(()=>finishRound(entries,playerHpFinal,aiHpFinal,'ai'),2000); return; }
+
+        setTimeout(() => {
+          setAnimStep('p-act');
+          showSpot({title:pMove, detail:`${ac.icon} ${ACTION_CFG[pAct].label}`, color:ac.color, type:pSpotType});
+
+          setTimeout(() => {
+            showPlayerHit();
+            setTimeout(()=>finishRound(entries,playerHpFinal,aiHpFinal,aiDefeated?'player':null),2000);
+          }, 1000);
+        }, 2000);
+      }, 1000);
+    } else {
+      // ── Player goes first (p-act → a-hit → a-act → p-hit) ───────────────────
+      // Both actions were chosen simultaneously — if AI is defending, show its
+      // shield bar going up right now so it's visible before the player hits.
+      if (aAct === 'defend') setAiShield(curAS + aShieldGain);
+      setAnimStep('p-act');
+      showSpot({title:pMove, detail:`${ac.icon} ${ACTION_CFG[pAct].label}`, color:ac.color, type:pSpotType});
+
+      setTimeout(() => {
+        showPlayerHit();
+        if (aiDefeated) { setTimeout(()=>finishRound(entries,playerHpFinal,aiHpFinal,'player'),2000); return; }
+
+        setTimeout(() => {
+          setAnimStep('a-act');
+          showSpot({title:aMove, detail:`${aac.icon} ${ACTION_CFG[aAct].label}`, color:aac.color, type:aSpotType});
+
+          setTimeout(() => {
+            showAIHit();
+            setTimeout(()=>finishRound(entries,playerHpFinal,aiHpFinal,playerDefeated?'ai':null),2000);
+          }, 1000);
+        }, 2000);
+      }, 1000);
+    }
   };
 
   const finishRound = (entries:LogEntry[], _p:number, _a:number, rWinner:'player'|'ai'|null) => {
@@ -697,17 +888,30 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     if (!curPlayer) return;
     const newStage = stage + 1;
     setStage(newStage);
+    const bossStage = newStage % 3 === 0;
+    setIsBoss(bossStage);
     const aiAlign: Alignment = alignment==='good'?'evil':'good';
     const { base: aiBase, final: aiFinal, rarity: aiRarity } = generateAIForStage(newStage);
     const aiName  = pick(AI_NAMES[aiAlign][aiRarity]);
     const aMaxHp  = calcMaxHp(aiFinal.health);
+    // Boss: +5 to one random stat + a real critter photo
+    const STAT_KEYS: StatKey[] = ['strength','health','stamina'];
+    const bossBoostStat = bossStage ? pick(STAT_KEYS) : undefined;
+    const bossImg       = bossStage && CRITTER_PHOTOS.length > 0 ? pick(CRITTER_PHOTOS) : undefined;
+    const bossFinal = bossBoostStat
+      ? { ...aiFinal, [bossBoostStat]: aiFinal[bossBoostStat] + 5 }
+      : aiFinal;
+    const bossFinalMaxHp = bossBoostStat === 'health' ? calcMaxHp(bossFinal.health) : aMaxHp;
     // HP and heal count carry over — no restoration between stages
-    setAI({name:aiName,rarity:aiRarity,alignment:aiAlign,base:aiBase,final:aiFinal,hp:aMaxHp,maxHp:aMaxHp});
+    setAI({name:aiName,rarity:aiRarity,alignment:aiAlign,base:aiBase,
+           final:bossFinal,hp:bossFinalMaxHp,maxHp:bossFinalMaxHp,
+           bossBoostStat,img:bossImg});
     setRound(1); setWinner(null); setAiHeals(0);
     setPlayerShield(curPlayer.final.stamina); setPlayerShieldMax(curPlayer.final.stamina); setPlayerDefended(false);
-    setAiShield(aiFinal.stamina);             setAiShieldMax(aiFinal.stamina);             setAiDefended(false);
-    setLog([{id:uid(),type:'info',text:`⚔️  Stage ${newStage} — ${aiName} enters!`},
-            {id:uid(),type:'info',text:`${aiName} — STR ${aiFinal.strength} · ❤️ ${aMaxHp} HP · 🛡️ ${aiFinal.stamina} shield`},
+    setAiShield(bossFinal.stamina);           setAiShieldMax(bossFinal.stamina);           setAiDefended(false);
+    const bossTag = bossStage ? ' 👑 BOSS' : '';
+    setLog([{id:uid(),type:'info',text:`⚔️  Stage ${newStage}${bossTag} — ${aiName} enters!`},
+            {id:uid(),type:'info',text:`${aiName} — STR ${bossFinal.strength} · ❤️ ${bossFinalMaxHp} HP · 🛡️ ${bossFinal.stamina} shield${bossBoostStat ? ` (+5 ${bossBoostStat})` : ''}`},
             {id:uid(),type:'info',text:`⚠️ HP carries over: ${curPlayer.hp}/${curPlayer.maxHp} · 🛡️ ${curPlayer.final.stamina} shield restored`}]);
     setBattleStep('choose'); setPlayerAction(null); setCombatRoll(null);
     setRevealedAIAct(null); setRevealedAIRoll(null);
@@ -722,19 +926,39 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setPlayerHeals(0); setAiHeals(0);
     setPlayerShield(0); setPlayerShieldMax(0); setPlayerDefended(false);
     setAiShield(0);    setAiShieldMax(0);    setAiDefended(false);
-    setStage(1);
+    setStage(1); setIsBoss(false);
     setMaxPlayerHeals(3); setBonusAttackRoll(0); setBonusPassive(0); setPerkChoices([]);
     setBattleStep('choose');
     setPlayerAction(null); setCombatRoll(null); setCombatSettled(false); setRevealedAIAct(null); setRevealedAIRoll(null);
     setAllocSettled(false);
     setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
     setBase({strength:0,health:0,stamina:0}); setPlayerName('');
+    setSelectedAdj(null); setSelectedCritter(null);
+    setAdjRollsLeft(3); setCritterRollsLeft(3);
+    setTurnSpinning(false); setTurnFirst(null);
   };
 
   // ── Perk flow ───────────────────────────────────────────────────────────────
   const handleShowPerks = () => {
     const shuffled = [...ALL_PERKS].sort(() => Math.random() - 0.5);
-    setPerkChoices(shuffled.slice(0, 2));
+    const chosen = shuffled.slice(0, 2).map(p => {
+      switch (p.id) {
+        case 'sharpened': {
+          const v = randInt(1, 3);
+          return { ...p, value: v, desc: `+${v} Strength permanently` };
+        }
+        case 'vitality': {
+          const v = randInt(2, 4);
+          return { ...p, value: v, desc: `+${v} Health stat (+${v * 4} max HP)` };
+        }
+        case 'fortified': {
+          const v = randInt(2, 4);
+          return { ...p, value: v, desc: `+${v} Defense — bigger shield every stage` };
+        }
+        default: return p;
+      }
+    });
+    setPerkChoices(chosen);
     setPhase('perk');
     // Submit this stage's score globally (fire-and-forget)
     submitStageScore(alignment, rarity, guild);
@@ -742,17 +966,25 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
 
   const applyPerkAndContinue = (perkId: string) => {
     let updatedPlayer = player ? { ...player } : null;
+    const chosenPerk = perkChoices.find(p => p.id === perkId);
     switch (perkId) {
-      case 'sharpened':
-        if (updatedPlayer) updatedPlayer = { ...updatedPlayer, final: { ...updatedPlayer.final, strength: updatedPlayer.final.strength + 1 } };
+      case 'sharpened': {
+        const v = chosenPerk?.value ?? 1;
+        if (updatedPlayer) updatedPlayer = { ...updatedPlayer, final: { ...updatedPlayer.final, strength: updatedPlayer.final.strength + v } };
         break;
-      case 'fortified':
-        if (updatedPlayer) updatedPlayer = { ...updatedPlayer, final: { ...updatedPlayer.final, stamina: updatedPlayer.final.stamina + 1 } };
+      }
+      case 'fortified': {
+        const v = chosenPerk?.value ?? 2;
+        if (updatedPlayer) updatedPlayer = { ...updatedPlayer, final: { ...updatedPlayer.final, stamina: updatedPlayer.final.stamina + v } };
         break;
+      }
       case 'vitality': {
+        const v = chosenPerk?.value ?? 3;
         if (updatedPlayer) {
-          const newMax = updatedPlayer.maxHp + 5;
-          updatedPlayer = { ...updatedPlayer, maxHp: newMax, hp: Math.min(newMax, updatedPlayer.hp + 5) };
+          const newHealth = updatedPlayer.final.health + v;
+          const newMax    = calcMaxHp(newHealth);
+          const hpGain    = newMax - updatedPlayer.maxHp;
+          updatedPlayer = { ...updatedPlayer, final: { ...updatedPlayer.final, health: newHealth }, maxHp: newMax, hp: Math.min(newMax, updatedPlayer.hp + hpGain) };
         }
         break;
       }
@@ -791,6 +1023,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
             <span className="bg-badge-rnd">Rnd {round}</span>
             <span className="bg-badge-dot">·</span>
             <span className="bg-badge-stg">Stage {stage}</span>
+            {isBoss && <span className="bg-badge-boss">👑 BOSS</span>}
           </div>
         )}
 
@@ -994,7 +1227,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
             <p className="bg-eyebrow">{ac.icon} {ac.label} · {GUILD_ICONS[guild]} {guild[0].toUpperCase()+guild.slice(1)} · {rarity[0].toUpperCase()+rarity.slice(1)}</p>
             <h2 className="bg-title">Your Critter</h2>
 
-            {/* Name row */}
+            {/* Name input */}
             <div className="bg-name-row">
               <input
                 className="bg-name-input"
@@ -1004,12 +1237,42 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
                 onChange={e=>setPlayerName(e.target.value)}
                 maxLength={24}
               />
-              <button className="bg-cta bg-cta--ghost"
-                onClick={()=>setPlayerName(pick(critterMode==='real' ? GUILD_NAMES[guild] : PLAYER_NAMES[alignment]))}
-                style={{whiteSpace:'nowrap'}}>
-                🎲 Rename
-              </button>
+              {critterMode === 'real' && (
+                <button className="bg-cta bg-cta--ghost"
+                  onClick={()=>setPlayerName(pick(GUILD_NAMES[guild]))}
+                  style={{whiteSpace:'nowrap'}}>
+                  🎲 Rename
+                </button>
+              )}
             </div>
+
+            {/* Name builder — adjective + critter (generated mode only) */}
+            {critterMode === 'generated' && (
+              <div className="bg-name-builder">
+                {/* Attribute card */}
+                <div className="bg-nb-card">
+                  <span className="bg-nbc-label">Attribute</span>
+                  <span className="bg-nbc-word" style={{color:ac.color}}>{selectedAdj?.word ?? '—'}</span>
+                  <span className="bg-nbc-bonus">{selectedAdj?.bonusLabel ?? ''}</span>
+                  <button className="bg-nbc-reroll"
+                    disabled={adjRollsLeft <= 0}
+                    onClick={handleRerollAdj}>
+                    🎲 {adjRollsLeft > 0 ? `Reroll (${adjRollsLeft})` : 'Used up'}
+                  </button>
+                </div>
+                {/* Critter card */}
+                <div className="bg-nb-card">
+                  <span className="bg-nbc-label">Critter</span>
+                  <span className="bg-nbc-word" style={{color:ac.color}}>{selectedCritter?.word ?? '—'}</span>
+                  <span className="bg-nbc-bonus">{selectedCritter?.bonusLabel ?? ''}</span>
+                  <button className="bg-nbc-reroll"
+                    disabled={critterRollsLeft <= 0}
+                    onClick={handleRerollCritter}>
+                    🎲 {critterRollsLeft > 0 ? `Reroll (${critterRollsLeft})` : 'Used up'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <p className="bg-sub" style={{fontSize:'0.82rem',opacity:0.7}}>
               {allocDice.length===0
@@ -1059,7 +1322,10 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
               {(['strength','health','stamina'] as StatKey[]).map(k=>{
                 const icons:Record<StatKey,string>={strength:'⚔️',health:'❤️',stamina:'🛡️'};
                 const names:Record<StatKey,string>={strength:'Strength',health:'Health',stamina:'Defense'};
-                const bonus = assigns.reduce((s,a,i)=>a===k?s+allocDice[i]:s,0);
+                const diceBonus = assigns.reduce((s,a,i)=>a===k?s+allocDice[i]:s,0);
+                const nameBonus = critterMode==='generated'
+                  ? (selectedAdj?.bonus[k]??0) + (selectedCritter?.bonus[k]??0) : 0;
+                const total = base[k] + diceBonus + nameBonus;
                 const ready = selDie!==null && allocDice.length===3 && !allocRolling;
                 return (
                   <button key={k} onClick={()=>handleAssign(k)} disabled={!ready}
@@ -1067,7 +1333,10 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
                     <span>{icons[k]}</span>
                     <span className="bab-name">{names[k]}</span>
                     <span className="bab-val">
-                      {base[k]}{bonus>0&&<> <span className="bab-plus">+{bonus}</span> = <strong>{base[k]+bonus}</strong></>}
+                      {base[k]}
+                      {nameBonus>0&&<span className="bab-plus bab-plus--name"> +{nameBonus}✨</span>}
+                      {diceBonus>0&&<span className="bab-plus"> +{diceBonus}</span>}
+                      {(nameBonus+diceBonus)>0&&<> = <strong>{total}</strong></>}
                     </span>
                   </button>
                 );
@@ -1091,7 +1360,8 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
         {phase==='battle' && player && ai && (
           <div className="bg-arena">
             <FighterCard fighter={player} label="You"   animStep={animStep} side="player" floatDmg={floatDmg} shield={playerShield} shieldMax={playerShieldMax}/>
-            <FighterCard fighter={ai}     label="Rival" animStep={animStep} side="ai"    floatDmg={floatDmg} shield={aiShield}    shieldMax={aiShieldMax}/>
+            <FighterCard fighter={ai}     label="Rival" animStep={animStep} side="ai"    floatDmg={floatDmg} shield={aiShield}    shieldMax={aiShieldMax}
+              healsLeft={Math.max(0, 1 - aiHeals)} canDefend={!aiDefended}/>
 
             <div className="bg-log" ref={logRef}>
               {log.map(e=>(
@@ -1123,20 +1393,51 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
               {battleStep==='player-rolling' && (
                 <div className="bg-roll-area">
                   <p className="bg-roll-hint">
-                    {ACTION_CFG[playerAction!].icon} <strong>{ACTION_CFG[playerAction!].label}</strong> — click the die to roll!
+                    {ACTION_CFG[playerAction!].icon} <strong>{ACTION_CFG[playerAction!].label}</strong>
+                    {combatRolling ? ' — rolling…' : ' — rolled!'}
                   </p>
-                  <D6Die value={combatRoll??'?'} spinning={combatRolling} large
-                    settled={combatSettled}
-                    onClick={!combatRolling&&combatRoll===null?handleCombatRoll:undefined}/>
-                  {combatRolling&&<p className="bg-roll-hint" style={{opacity:0.5,fontStyle:'italic'}}>Rolling…</p>}
+                  <D6Die value={combatRoll??'?'} spinning={combatRolling} large settled={combatSettled}/>
                 </div>
               )}
 
-              {battleStep==='animating'&&revealedAIAct&&(
+              {/* Turn-order spin wheel — appears between die-settle and combat */}
+              {(turnSpinning || turnFirst !== null) && (
+                <div className="bg-turn-spin">
+                  <div className="bg-ts-row">
+                    <span className={`bg-ts-chip${turnFirst==='player'?' bg-ts-chip--won':turnFirst==='ai'?' bg-ts-chip--lost':''}`}>
+                      ⚔️ You
+                    </span>
+                    <div className="bg-ts-mid">
+                      {turnSpinning
+                        ? <div className="bg-ts-spinner"/>
+                        : <span className="bg-ts-arrow">{turnFirst==='player'?'◀':'▶'}</span>
+                      }
+                    </div>
+                    <span className={`bg-ts-chip${turnFirst==='ai'?' bg-ts-chip--won':turnFirst==='player'?' bg-ts-chip--lost':''}`}>
+                      Rival ⚔️
+                    </span>
+                  </div>
+                  <p className="bg-ts-label">
+                    {turnSpinning ? 'Deciding turn order…'
+                      : turnFirst==='player' ? '⚡ You go first!'
+                      : '⚡ Rival goes first!'}
+                  </p>
+                </div>
+              )}
+
+              {battleStep==='animating'&&revealedAIAct&&revealedAIRoll!=null&&(
                 <div className="bg-ai-reveal">
-                  <span className="bg-ai-reveal-you">You: <strong>{combatRoll}</strong> {ACTION_CFG[playerAction!].icon}</span>
-                  <span className="bg-ai-reveal-sep">·</span>
-                  <span className="bg-ai-reveal-act">Rival: <strong>{revealedAIRoll}</strong> {ACTION_CFG[revealedAIAct].icon}</span>
+                  <div className="bg-air-side">
+                    <span className="bg-air-tag">You</span>
+                    <span className="bg-air-action">{ACTION_CFG[playerAction!].icon}</span>
+                    <D6Die value={combatRoll??1} />
+                  </div>
+                  <span className="bg-air-vs">vs</span>
+                  <div className="bg-air-side bg-air-side--rival">
+                    <span className="bg-air-tag">Rival</span>
+                    <span className="bg-air-action">{ACTION_CFG[revealedAIAct].icon}</span>
+                    <D6Die value={revealedAIRoll} />
+                  </div>
                 </div>
               )}
             </div>
