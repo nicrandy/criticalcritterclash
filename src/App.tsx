@@ -133,7 +133,7 @@ function App() {
       {/* ── NAV ── */}
       <nav className="site-nav">
         <div className="nav-links">
-          {(['home', 'events', 'critters', 'rules'] as NavSection[]).map(s => (
+          {(['home', 'events', 'critters'] as NavSection[]).map(s => (
             <button
               key={s}
               className={`nav-link ${activeNav === s ? 'nav-link--active' : ''}`}
@@ -215,8 +215,8 @@ function App() {
 
       </section>
 
-      {/* ── RULES ── */}
-      <section id="rules" className="section rules-section">
+      {/* ── RULES — hidden from nav/page, code kept for later use ── */}
+      {false && <section id="rules" className="section rules-section">
         <div className="section-header">
           <p className="section-eyebrow">How to Play</p>
           <h2 className="section-title">Rules of Combat</h2>
@@ -292,7 +292,7 @@ function App() {
             </div>
           )}
         </div>
-      </section>
+      </section>}
 
       {/* ── FOOTER ── */}
       <footer className="site-footer">
