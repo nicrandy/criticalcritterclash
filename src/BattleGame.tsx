@@ -7,7 +7,7 @@ type StatKey    = 'strength' | 'health' | 'stamina';
 type Alignment  = 'good' | 'evil';
 type Guild      = 'rabbit' | 'fox' | 'squirrel' | 'rogue';
 type Action     = 'attack' | 'defend' | 'heal';
-type Phase      = 'mode' | 'setup' | 'enchant' | 'rolling' | 'allocating' | 'real-setup' | 'real-stats' | 'battle' | 'result';
+type Phase      = 'mode' | 'setup' | 'enchant' | 'rolling' | 'allocating' | 'real-setup' | 'real-stats' | 'battle' | 'result' | 'perk';
 type BattleStep = 'choose' | 'player-rolling' | 'animating';
 type AnimStep   = 'idle' | 'p-act' | 'a-hit' | 'a-act' | 'p-hit';
 
@@ -27,6 +27,7 @@ interface Spotlight {
   type: 'attack' | 'damage' | 'critical' | 'block' | 'heal' | 'idle';
 }
 interface FloatDmg { val: number; color: string; side: 'player' | 'ai'; id: number; }
+interface PerkDef  { id: string; name: string; icon: string; desc: string; }
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 const MOVES: Record<Alignment, Record<Rarity, string[]>> = {
@@ -96,6 +97,18 @@ const ACTION_CFG: Record<Action, { icon: string; label: string }> = {
 };
 
 const IDLE_SPOTLIGHT: Spotlight = { title:'', detail:'', color:'#888', type:'idle' };
+
+// ─── Perk pool ────────────────────────────────────────────────────────────────
+const ALL_PERKS: PerkDef[] = [
+  { id:'sharpened',   name:'Sharpened',   icon:'⚔️', desc:'+1 Strength permanently' },
+  { id:'fortified',   name:'Fortified',   icon:'🛡️', desc:'+1 Defense — bigger shield every stage' },
+  { id:'vitality',    name:'Vitality',    icon:'❤️', desc:'+5 max HP permanently' },
+  { id:'extra-vial',  name:'Extra Vial',  icon:'💊', desc:'+1 Heal charge (up to 4 total)' },
+  { id:'blood-mend',  name:'Blood Mend',  icon:'🩸', desc:'Immediately restore 20 HP' },
+  { id:'second-wind', name:'Second Wind', icon:'🌬️', desc:'Fully restore HP to maximum' },
+  { id:'iron-skin',   name:'Iron Skin',   icon:'🪨', desc:'+1 passive damage reduction permanently' },
+  { id:'relentless',  name:'Relentless',  icon:'⚡', desc:'+1 added to every attack roll' },
+];
 
 // ─── Guild data ───────────────────────────────────────────────────────────────
 const GUILD_ICONS: Record<Guild, string> = {
@@ -369,6 +382,10 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   const [aiShieldMax,     setAiShieldMax]     = useState(0);
   const [aiDefended,      setAiDefended]      = useState(false);
   const [stage,           setStage]           = useState(1);
+  const [maxPlayerHeals,  setMaxPlayerHeals]  = useState(3);
+  const [bonusAttackRoll, setBonusAttackRoll] = useState(0);
+  const [bonusPassive,    setBonusPassive]    = useState(0);
+  const [perkChoices,     setPerkChoices]     = useState<PerkDef[]>([]);
 
   const logRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if(logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [log]);
@@ -441,6 +458,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     const pF: Fighter = { name:playerName||'Your Critter', rarity, alignment, guild: critterMode==='real' ? guild : undefined, base, final:pFinal, hp:pMaxHp, maxHp:pMaxHp };
     const aF: Fighter = { name:aiName, rarity:aiRarity, alignment:aiAlign, base:aiBase, final:aiFinal, hp:aMaxHp, maxHp:aMaxHp };
     setStage(1);
+    setMaxPlayerHeals(3); setBonusAttackRoll(0); setBonusPassive(0); setPerkChoices([]);
     setPlayer(pF); setAI(aF); setRound(1); setWinner(null);
     setPlayerHeals(0); setAiHeals(0);
     setPlayerShield(pFinal.stamina); setPlayerShieldMax(pFinal.stamina); setPlayerDefended(false);
@@ -510,7 +528,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     if (pAct === 'defend') { setPlayerDefended(true); setPlayerShieldMax(m => Math.max(m, curPS + pRoll + curP.final.stamina)); }
     if (aAct === 'defend') { setAiDefended(true);    setAiShieldMax(m => Math.max(m, curAS + aRoll + curA.final.stamina)); }
 
-    const pass_p = calcPassive(curP), pass_a = calcPassive(curA);
+    const pass_p = calcPassive(curP) + bonusPassive, pass_a = calcPassive(curA);
 
     // ── Shield gains this round ──────────────────────────────────────────────
     const pShieldGain = pAct === 'defend' ? pRoll + curP.final.stamina : 0;
@@ -522,7 +540,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     let pDmg = 0, pCrit = false, aShieldAbsorb = 0;
     if (pAct === 'attack') {
       pCrit = pRoll === 6;
-      const raw = pRoll + curP.final.strength + (pCrit ? 3 : 0);
+      const raw = pRoll + curP.final.strength + (pCrit ? 3 : 0) + bonusAttackRoll;
       if (aShieldRun > 0) {
         aShieldAbsorb = Math.min(aShieldRun, raw);
         aShieldRun    = Math.max(0, aShieldRun - aShieldAbsorb);
@@ -573,7 +591,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     if (pAct==='attack') {
       const sNote = aShieldAbsorb > 0 ? ` (shield −${aShieldAbsorb})` : ` (passive ${pass_a})`;
       entries.push({id:uid(),type:pCrit?'critical':'hit',who:'player',
-        text:`${ac.icon} ${pMove}: roll ${pRoll}+${curP.final.strength}${pCrit?'+3🎯':''}=${pRoll+curP.final.strength+(pCrit?3:0)}${sNote} → ${pDmg} dmg`});
+        text:`${ac.icon} ${pMove}: roll ${pRoll}+${curP.final.strength}${pCrit?'+3🎯':''}${bonusAttackRoll>0?`+${bonusAttackRoll}⚡`:''}=${pRoll+curP.final.strength+(pCrit?3:0)+bonusAttackRoll}${sNote} → ${pDmg} dmg`});
     } else if (pAct==='defend') {
       entries.push({id:uid(),type:'block',who:'player',
         text:`🛡️ ${pMove}: +${pShieldGain} shield (${curP.final.stamina} STA + roll ${pRoll})`});
@@ -676,8 +694,9 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     else { setBattleStep('choose'); setPlayerAction(null); setCombatRoll(null); setRevealedAIAct(null); setRevealedAIRoll(null); }
   };
 
-  const handleNextBattle = () => {
-    if (!player) return;
+  const handleNextBattle = (overridePlayer?: Fighter) => {
+    const curPlayer = overridePlayer ?? player;
+    if (!curPlayer) return;
     const newStage = stage + 1;
     setStage(newStage);
     const aiAlign: Alignment = alignment==='good'?'evil':'good';
@@ -687,11 +706,11 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     // HP and heal count carry over — no restoration between stages
     setAI({name:aiName,rarity:aiRarity,alignment:aiAlign,base:aiBase,final:aiFinal,hp:aMaxHp,maxHp:aMaxHp});
     setRound(1); setWinner(null); setAiHeals(0);
-    setPlayerShield(player.final.stamina); setPlayerShieldMax(player.final.stamina); setPlayerDefended(false);
-    setAiShield(aiFinal.stamina);          setAiShieldMax(aiFinal.stamina);          setAiDefended(false);
+    setPlayerShield(curPlayer.final.stamina); setPlayerShieldMax(curPlayer.final.stamina); setPlayerDefended(false);
+    setAiShield(aiFinal.stamina);             setAiShieldMax(aiFinal.stamina);             setAiDefended(false);
     setLog([{id:uid(),type:'info',text:`⚔️  Stage ${newStage} — ${aiName} enters!`},
             {id:uid(),type:'info',text:`${aiName} — STR ${aiFinal.strength} · ❤️ ${aMaxHp} HP · 🛡️ ${aiFinal.stamina} shield`},
-            {id:uid(),type:'info',text:`⚠️ HP carries over: ${player.hp}/${player.maxHp} · 🛡️ ${player.final.stamina} shield restored · Heals: ${3-playerHeals} left`}]);
+            {id:uid(),type:'info',text:`⚠️ HP carries over: ${curPlayer.hp}/${curPlayer.maxHp} · 🛡️ ${curPlayer.final.stamina} shield restored`}]);
     setBattleStep('choose'); setPlayerAction(null); setCombatRoll(null);
     setRevealedAIAct(null); setRevealedAIRoll(null);
     setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
@@ -706,10 +725,55 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setPlayerShield(0); setPlayerShieldMax(0); setPlayerDefended(false);
     setAiShield(0);    setAiShieldMax(0);    setAiDefended(false);
     setStage(1);
+    setMaxPlayerHeals(3); setBonusAttackRoll(0); setBonusPassive(0); setPerkChoices([]);
     setBattleStep('choose');
     setPlayerAction(null); setCombatRoll(null); setRevealedAIAct(null); setRevealedAIRoll(null);
     setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
     setEnchanted(false); setBase({strength:0,health:0,stamina:0}); setPlayerName('');
+  };
+
+  // ── Perk flow ───────────────────────────────────────────────────────────────
+  const handleShowPerks = () => {
+    const shuffled = [...ALL_PERKS].sort(() => Math.random() - 0.5);
+    setPerkChoices(shuffled.slice(0, 2));
+    setPhase('perk');
+  };
+
+  const applyPerkAndContinue = (perkId: string) => {
+    let updatedPlayer = player ? { ...player } : null;
+    switch (perkId) {
+      case 'sharpened':
+        if (updatedPlayer) updatedPlayer = { ...updatedPlayer, final: { ...updatedPlayer.final, strength: updatedPlayer.final.strength + 1 } };
+        break;
+      case 'fortified':
+        if (updatedPlayer) updatedPlayer = { ...updatedPlayer, final: { ...updatedPlayer.final, stamina: updatedPlayer.final.stamina + 1 } };
+        break;
+      case 'vitality': {
+        if (updatedPlayer) {
+          const newMax = updatedPlayer.maxHp + 5;
+          updatedPlayer = { ...updatedPlayer, maxHp: newMax, hp: Math.min(newMax, updatedPlayer.hp + 5) };
+        }
+        break;
+      }
+      case 'extra-vial':
+        setMaxPlayerHeals(m => Math.min(m + 1, 4));
+        setPlayerHeals(h => Math.max(0, h - 1));
+        break;
+      case 'blood-mend':
+        if (updatedPlayer) updatedPlayer = { ...updatedPlayer, hp: Math.min(updatedPlayer.maxHp, updatedPlayer.hp + 20) };
+        break;
+      case 'second-wind':
+        if (updatedPlayer) updatedPlayer = { ...updatedPlayer, hp: updatedPlayer.maxHp };
+        break;
+      case 'iron-skin':
+        setBonusPassive(b => b + 1);
+        break;
+      case 'relentless':
+        setBonusAttackRoll(b => b + 1);
+        break;
+    }
+    if (updatedPlayer && updatedPlayer !== player) setPlayer(updatedPlayer);
+    handleNextBattle(updatedPlayer ?? undefined);
   };
 
   // ─── Render ───────────────────────────────────────────────────────────────────
@@ -1058,12 +1122,12 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
               {battleStep==='choose' && (
                 <div className="bg-action-btns">
                   {(['attack','defend','heal'] as Action[])
-                    .filter(a => !(a==='defend' && playerDefended) && !(a==='heal' && playerHeals>=3))
+                    .filter(a => !(a==='defend' && playerDefended) && !(a==='heal' && playerHeals>=maxPlayerHeals))
                     .map(a=>(
                       <button key={a} className="bg-action-btn" onClick={()=>handleChooseAction(a)}>
                         <span className="bact-icon">{ACTION_CFG[a].icon}</span>
                         <span className="bact-label">{ACTION_CFG[a].label}</span>
-                        {a==='heal' && <span className="bact-uses">{3-playerHeals} left</span>}
+                        {a==='heal' && <span className="bact-uses">{maxPlayerHeals-playerHeals} left</span>}
                       </button>
                     ))
                   }
@@ -1108,8 +1172,8 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
             </div>
             <div className="bg-result-btns">
               {winner==='player'&&(
-                <button className="bg-cta" onClick={handleNextBattle} style={{borderColor:ac.color,color:ac.color}}>
-                  ⚔️ Next Rival →
+                <button className="bg-cta" onClick={handleShowPerks} style={{borderColor:ac.color,color:ac.color}}>
+                  ✨ Choose a Perk →
                 </button>
               )}
               <button className="bg-cta bg-cta--ghost" onClick={handleReset}>
@@ -1118,6 +1182,32 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
             </div>
           </div>
         )}
+
+        {/* ── PERK ── */}
+        {phase==='perk' && player && (
+          <div className="bg-panel bg-perk-screen">
+            <p className="bg-eyebrow">Stage {stage} Complete</p>
+            <h2 className="bg-title">Choose a Perk</h2>
+            <p className="bg-sub" style={{opacity:0.7,fontSize:'0.82rem'}}>
+              Pick one upgrade. It lasts for the rest of your run.
+            </p>
+            <div className="bg-perk-row">
+              {perkChoices.map(perk=>(
+                <button key={perk.id} className="bg-perk-card"
+                  onClick={()=>applyPerkAndContinue(perk.id)}
+                  style={{'--align-color':ac.color,'--align-glow':ac.glow} as React.CSSProperties}>
+                  <span className="bpc-icon">{perk.icon}</span>
+                  <span className="bpc-name">{perk.name}</span>
+                  <span className="bpc-desc">{perk.desc}</span>
+                </button>
+              ))}
+            </div>
+            <p className="bg-sub" style={{opacity:0.4,fontSize:'0.75rem',marginTop:'0.5rem'}}>
+              Your HP ({player.hp}/{player.maxHp}) carries into the next stage.
+            </p>
+          </div>
+        )}
+
       </div>
     </div>
   );
