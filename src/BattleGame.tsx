@@ -5,14 +5,15 @@ import { rarityColor, rarityGlow } from './critters';
 type Rarity     = 'rare' | 'unique' | 'legendary';
 type StatKey    = 'strength' | 'health' | 'stamina';
 type Alignment  = 'good' | 'evil';
+type Guild      = 'rabbit' | 'fox' | 'squirrel' | 'rogue';
 type Action     = 'attack' | 'defend' | 'heal';
-type Phase      = 'setup' | 'enchant' | 'rolling' | 'allocating' | 'battle' | 'result';
+type Phase      = 'mode' | 'setup' | 'enchant' | 'rolling' | 'allocating' | 'real-setup' | 'real-stats' | 'battle' | 'result';
 type BattleStep = 'choose' | 'player-rolling' | 'animating';
 type AnimStep   = 'idle' | 'p-act' | 'a-hit' | 'a-act' | 'p-hit';
 
 interface Stats   { strength: number; health: number; stamina: number; }
 interface Fighter {
-  name: string; rarity: Rarity; alignment: Alignment;
+  name: string; rarity: Rarity; alignment: Alignment; guild?: Guild;
   base: Stats; final: Stats; hp: number; maxHp: number;
 }
 interface LogEntry {
@@ -95,6 +96,38 @@ const ACTION_CFG: Record<Action, { icon: string; label: string }> = {
 };
 
 const IDLE_SPOTLIGHT: Spotlight = { title:'', detail:'', color:'#888', type:'idle' };
+
+// ─── Guild data ───────────────────────────────────────────────────────────────
+const GUILD_ICONS: Record<Guild, string> = {
+  rabbit: '🐇', fox: '🦊', squirrel: '🐿️', rogue: '🥷',
+};
+
+const GUILD_NAMES: Record<Guild, string[]> = {
+  rabbit: [
+    'Snowpelt','Cloverfoot','Dustwhisker','Moonear','Willowbun',
+    'Thornfur','Cobblehop','Dewclaw','Frostlop','Meadowpatch',
+    'Silverleap','Bramblefoot','Pebblehop','Cinderear','Rushwhisker',
+  ],
+  fox: [
+    'Embertail','Ashenfur','Crimsonpaw','Duskfire','Gleamsnout',
+    'Cindercoat','Rustfang','Shadowglow','Goldbristle','Flamecrest',
+    'Tawnysnap','Brackenmane','Scorchpelt','Amberfang','Slyember',
+  ],
+  squirrel: [
+    'Nutclaw','Acornleap','Branchrunner','Mossnibble','Pinecrest',
+    'Twigspin','Cobblecheek','Bushtail','Driftchatter','Hazelflick',
+    'Spireclaw','Cobbleskip','Thornchew','Barkleap','Gnarlfur',
+  ],
+  rogue: [
+    'Shadowstep','Nightblade','Thornstrike','Ashveil','Dustshroud',
+    'Quickclaw','Veilpaw','Grimhook','Slyedge','Murkcreep',
+    'Coldsnap','Bonewhisper','Duskfang','Riftstalker','Ghostpaw',
+  ],
+};
+
+const RANK_RANGE: Record<Rarity, [number, number]> = {
+  rare: [0, 5], unique: [2, 7], legendary: [6, 9],
+};
 
 // ─── Stat distributions (weighted bell curve per rarity) ──────────────────────
 // [value, weight]
@@ -200,7 +233,7 @@ function FighterCard({ fighter, label, animStep, side, floatDmg, shield, shieldM
   const attacking = (side==='player'&&animStep==='p-act')||(side==='ai'&&animStep==='a-act');
   const hit       = (side==='ai'&&animStep==='a-hit')||(side==='player'&&animStep==='p-hit');
   const ac        = ALIGN_CFG[fighter.alignment];
-  const portrait  = PORTRAITS[fighter.alignment][fighter.rarity];
+  const portrait  = fighter.guild ? GUILD_ICONS[fighter.guild] : PORTRAITS[fighter.alignment][fighter.rarity];
   const rc        = rarityColor[fighter.rarity];
   const showFloat = floatDmg && floatDmg.side === side;
 
@@ -283,9 +316,11 @@ function SpotlightPanel({ spot }: { spot: Spotlight }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function BattleGame({ onClose }: { onClose:()=>void }) {
-  const [phase,          setPhase]         = useState<Phase>('setup');
+  const [phase,          setPhase]         = useState<Phase>('mode');
+  const [critterMode,    setCritterMode]   = useState<'real'|'generated'>('generated');
   const [alignment,      setAlignment]     = useState<Alignment>('good');
   const [rarity,         setRarity]        = useState<Rarity>('rare');
+  const [guild,          setGuild]         = useState<Guild>('rabbit');
   const [base,           setBase]          = useState<Stats>({strength:0,health:0,stamina:0});
   const [playerName,     setPlayerName]    = useState('');
   const [enchanted,      setEnchanted]     = useState(false);
@@ -401,6 +436,50 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setAiShield(0);    setAiShieldMax(0);    setAiDefended(false);
     setLog([
       {id:uid(),type:'info',text:`⚔️  Battle begins!  ${playerName}  vs  ${aiName}`},
+      {id:uid(),type:'info',text:`You — ${ac.icon} ${ac.label} · STR ${pFinal.strength} · ❤️ ${pMaxHp} HP · 🛡️ DEF ${pFinal.stamina}`},
+      {id:uid(),type:'info',text:`${aiName} — ${aac.icon} ${aac.label} · STR ${aiBase.strength} · ❤️ ${aMaxHp} HP · 🛡️ DEF ${aiBase.stamina}`},
+    ]);
+    setBattleStep('choose'); setPlayerAction(null);
+    setCombatRoll(null); setRevealedAIAct(null); setRevealedAIRoll(null);
+    setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
+    setPhase('battle');
+  };
+
+  // ── Real critter battle ─────────────────────────────────────────────────────
+  const handleGenerateName = () => setPlayerName(pick(GUILD_NAMES[guild]));
+
+  const handleRealStat = (k: StatKey, delta: number) => {
+    const [min, max] = RANK_RANGE[rarity];
+    setBase(b => ({ ...b, [k]: Math.max(min, Math.min(max, b[k] + delta)) }));
+  };
+
+  const handleRealSetupContinue = () => {
+    const [min] = RANK_RANGE[rarity];
+    setBase({ strength: min, health: min, stamina: min });
+    setPlayerName('');
+    setPhase('real-stats');
+  };
+
+  const handleBeginRealBattle = () => {
+    const name    = playerName.trim() || pick(GUILD_NAMES[guild]);
+    const pFinal  = { ...base };
+    const aiAlign: Alignment = alignment === 'good' ? 'evil' : 'good';
+    const aiBase  = generateAIStats(1);
+    const aiName  = pick(AI_NAMES[aiAlign][rarity]);
+    const pMaxHp  = calcMaxHp(pFinal.health);
+    const aMaxHp  = calcMaxHp(aiBase.health);
+    const aac     = ALIGN_CFG[aiAlign];
+
+    const pF: Fighter = { name, rarity, alignment, guild, base, final: pFinal, hp: pMaxHp, maxHp: pMaxHp };
+    const aF: Fighter = { name: aiName, rarity, alignment: aiAlign, base: aiBase, final: aiBase, hp: aMaxHp, maxHp: aMaxHp };
+
+    setCritterMode('real'); setStage(1);
+    setPlayer(pF); setAI(aF); setRound(1); setWinner(null);
+    setPlayerHeals(0); setAiHeals(0);
+    setPlayerShield(0); setPlayerShieldMax(0); setPlayerDefended(false);
+    setAiShield(0);    setAiShieldMax(0);    setAiDefended(false);
+    setLog([
+      {id:uid(),type:'info',text:`⚔️  Battle begins!  ${name}  vs  ${aiName}`},
       {id:uid(),type:'info',text:`You — ${ac.icon} ${ac.label} · STR ${pFinal.strength} · ❤️ ${pMaxHp} HP · 🛡️ DEF ${pFinal.stamina}`},
       {id:uid(),type:'info',text:`${aiName} — ${aac.icon} ${aac.label} · STR ${aiBase.strength} · ❤️ ${aMaxHp} HP · 🛡️ DEF ${aiBase.stamina}`},
     ]);
@@ -633,7 +712,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   };
 
   const handleReset = () => {
-    setPhase('setup'); setAllocDice([]); setAssigns([null,null,null]); setSelDie(null);
+    setPhase('mode'); setAllocDice([]); setAssigns([null,null,null]); setSelDie(null);
     setPlayer(null); setAI(null); setLog([]); setRound(1);
     setWinner(null); setStreak(0);
     setPlayerHeals(0); setAiHeals(0);
@@ -660,6 +739,143 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
             <span className="bg-badge-rnd">Rnd {round}</span>
             <span className="bg-badge-dot">·</span>
             <span className="bg-badge-stg">Stage {stage}</span>
+          </div>
+        )}
+
+        {/* ── STEP 0: Mode chooser ── */}
+        {phase==='mode' && (
+          <div className="bg-panel">
+            <p className="bg-eyebrow">Arena</p>
+            <h2 className="bg-title">Enter the Arena</h2>
+            <p className="bg-sub">Choose how to create your critter.</p>
+            <div className="bg-mode-row">
+              <button className="bg-mode-btn" onClick={()=>{ setCritterMode('real'); setPhase('real-setup'); }}>
+                <span className="bgm-icon">🃏</span>
+                <span className="bgm-title">Use Your Critter</span>
+                <span className="bgm-desc">Enter stats from your real card</span>
+              </button>
+              <button className="bg-mode-btn" onClick={()=>{ setCritterMode('generated'); setPhase('setup'); }}>
+                <span className="bgm-icon">🎲</span>
+                <span className="bgm-title">Generate a Critter</span>
+                <span className="bgm-desc">Roll and build from scratch</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── REAL SETUP: Alignment + Rank + Guild ── */}
+        {phase==='real-setup' && (
+          <div className="bg-panel">
+            <p className="bg-eyebrow">Your Card</p>
+            <h2 className="bg-title">Set Up Your Critter</h2>
+
+            <div className="bg-section-lbl">Alignment</div>
+            <div className="bg-align-row">
+              {(['good','evil'] as Alignment[]).map(a=>{
+                const cfg=ALIGN_CFG[a], active=alignment===a;
+                return (
+                  <button key={a} onClick={()=>setAlignment(a)}
+                    className={`bg-align-btn ${active?'bg-align-btn--on':''}`}
+                    style={active?{borderColor:cfg.color,boxShadow:`0 0 24px ${cfg.glow}`}:{}}>
+                    <span className="bab-icon">{cfg.icon}</span>
+                    <span className="bab-label" style={active?{color:cfg.color}:{}}>{cfg.label}</span>
+                    <span className="bab-desc">{a==='good'?'Honor & holy power':'Dark power & cunning'}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="bg-section-lbl" style={{marginTop:'0.5rem'}}>Rank</div>
+            <div className="bg-diff-row">
+              {(['rare','unique','legendary'] as Rarity[]).map(r=>{
+                const active=rarity===r;
+                return (
+                  <button key={r} onClick={()=>setRarity(r)}
+                    className={`bg-diff-btn ${active?'bg-diff-btn--on':''}`}
+                    style={active?{borderColor:rarityColor[r],boxShadow:`0 0 14px ${rarityGlow[r]}`}:{}}>
+                    <span className="bdb-icon">{DIFFICULTY_CFG[r].icon}</span>
+                    <span className="bdb-rarity" style={active?{color:rarityColor[r]}:{}}>{r[0].toUpperCase()+r.slice(1)}</span>
+                    <span className="bdb-diff">Stats {RANK_RANGE[r][0]}–{RANK_RANGE[r][1]}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="bg-section-lbl" style={{marginTop:'0.5rem'}}>Guild</div>
+            <div className="bg-guild-row">
+              {(['rabbit','fox','squirrel','rogue'] as Guild[]).map(g=>{
+                const active=guild===g;
+                return (
+                  <button key={g} onClick={()=>setGuild(g)}
+                    className={`bg-guild-btn ${active?'bg-guild-btn--on':''}`}
+                    style={active?{borderColor:ac.color,boxShadow:`0 0 16px ${ac.glow}`}:{}}>
+                    <span className="bgui-icon">{GUILD_ICONS[g]}</span>
+                    <span className="bgui-name">{g[0].toUpperCase()+g.slice(1)}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button className="bg-cta" onClick={handleRealSetupContinue}
+              style={{borderColor:ac.color,color:ac.color}}>
+              Continue →
+            </button>
+          </div>
+        )}
+
+        {/* ── REAL STATS: Name + stat steppers ── */}
+        {phase==='real-stats' && (
+          <div className="bg-panel">
+            <p className="bg-eyebrow">Your Card · {GUILD_ICONS[guild]} {guild[0].toUpperCase()+guild.slice(1)}</p>
+            <h2 className="bg-title">Enter Your Stats</h2>
+            <p className="bg-sub" style={{fontSize:'0.8rem',opacity:0.65}}>
+              {rarity[0].toUpperCase()+rarity.slice(1)} range: {RANK_RANGE[rarity][0]}–{RANK_RANGE[rarity][1]}
+            </p>
+
+            <div className="bg-name-row">
+              <input
+                className="bg-name-input"
+                type="text"
+                placeholder="Critter name…"
+                value={playerName}
+                onChange={e=>setPlayerName(e.target.value)}
+                maxLength={24}
+              />
+              <button className="bg-cta bg-cta--ghost" onClick={handleGenerateName} style={{whiteSpace:'nowrap'}}>
+                🎲 Generate
+              </button>
+            </div>
+
+            <div className="bg-stat-inputs">
+              {([
+                ['strength','⚔️','Strength'],
+                ['health',  '❤️','Health'  ],
+                ['stamina', '🛡️','Defense' ],
+              ] as [StatKey,string,string][]).map(([k,icon,name])=>{
+                const [mn,mx] = RANK_RANGE[rarity];
+                return (
+                  <div key={k} className="bg-stat-row">
+                    <span className="bg-stat-icon">{icon}</span>
+                    <span className="bg-stat-name">{name}</span>
+                    <div className="bg-stat-ctrl">
+                      <button onClick={()=>handleRealStat(k,-1)} disabled={base[k]<=mn}>−</button>
+                      <span>{base[k]}</span>
+                      <button onClick={()=>handleRealStat(k, 1)} disabled={base[k]>=mx}>+</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="bg-es-hp" style={{maxWidth:'340px',width:'100%'}}>
+              <span>Starting HP</span>
+              <span style={{color:ac.color,fontFamily:'var(--font-heading)',fontWeight:700}}>{calcMaxHp(base.health)}</span>
+            </div>
+
+            <button className="bg-cta" onClick={handleBeginRealBattle}
+              style={{borderColor:ac.color,color:ac.color}}>
+              ⚔️ Enter the Arena
+            </button>
           </div>
         )}
 
