@@ -1171,14 +1171,15 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
               ))}
             </div>
             <div className="bg-result-btns">
-              {winner==='player'&&(
+              {winner==='player' ? (
                 <button className="bg-cta" onClick={handleShowPerks} style={{borderColor:ac.color,color:ac.color}}>
                   ✨ Choose a Perk →
                 </button>
+              ) : (
+                <button className="bg-cta bg-cta--ghost" onClick={handleReset}>
+                  ↺ Try Again
+                </button>
               )}
-              <button className="bg-cta bg-cta--ghost" onClick={handleReset}>
-                {winner==='player'?'New Critter':'↺ Try Again'}
-              </button>
             </div>
           </div>
         )}
