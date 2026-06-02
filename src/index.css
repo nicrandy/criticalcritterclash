@@ -738,8 +738,75 @@ body {
   object-fit: contain;
 }
 
-/* ── HERO BATTLE BUTTON ───────────────────────────── */
+/* ── HERO BATTLE BUTTON (legacy — kept for reference) ─ */
 .hero-battle-btn { margin-top: 2rem; font-size: 1rem; padding: 0.75rem 2.5rem; letter-spacing: 0.12em; }
+
+/* ── ARENA BANNER ─────────────────────────────────── */
+.arena-banner {
+  position: relative;
+  display: block;
+  width: min(680px, 92%);
+  margin-top: 2.5rem;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  border: 1.5px solid rgba(201,168,76,0.35);
+  background: var(--bg-deep);
+  cursor: pointer;
+  padding: 0;
+  box-shadow:
+    0 0 60px rgba(201,168,76,0.25),
+    0 24px 60px rgba(0,0,0,0.55);
+  transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+}
+.arena-banner:hover {
+  transform: translateY(-5px) scale(1.015);
+  border-color: rgba(201,168,76,0.7);
+  box-shadow:
+    0 0 100px rgba(201,168,76,0.5),
+    0 32px 80px rgba(0,0,0,0.65);
+}
+.arena-banner-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  transition: transform 0.5s ease;
+}
+.arena-banner:hover .arena-banner-img {
+  transform: scale(1.05);
+}
+.arena-banner-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 1.75rem;
+  background: linear-gradient(
+    to top,
+    rgba(0,0,0,0.82) 0%,
+    rgba(0,0,0,0.35) 45%,
+    transparent 100%
+  );
+}
+.arena-banner-label {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 4.5vw, 2.75rem);
+  font-weight: 900;
+  color: var(--text-bright);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 40px rgba(201,168,76,0.9),
+    0 0 80px rgba(201,168,76,0.5),
+    0 3px 10px rgba(0,0,0,0.9);
+  transition: text-shadow 0.3s ease;
+}
+.arena-banner:hover .arena-banner-label {
+  text-shadow:
+    0 0 60px rgba(201,168,76,1),
+    0 0 120px rgba(201,168,76,0.7),
+    0 3px 10px rgba(0,0,0,0.9);
+}
 
 /* ── D6 SVG SHARED ───────────────────────────────── */
 .d6-face { fill: var(--bg-deep); stroke: var(--gold); stroke-width: 2.5; }

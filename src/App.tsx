@@ -3,7 +3,8 @@ import { critters, rarityColor, rarityGlow, type Critter } from './critters';
 import { ruleSets } from './ruleSets';
 import { supabase, formatEventDate, type Event } from './supabaseClient';
 import { BattleGame } from './BattleGame';
-import logo from '../images/product_images/logo.png';
+import logo     from '../images/product_images/logo.png';
+import arenaImg from '../images/product_images/arena.png';
 
 // ── Image globs ───────────────────────────────────────────────────────────────
 const critterPhotoModules = import.meta.glob(
@@ -160,8 +161,11 @@ function App() {
             Build your party.<br />
             Battle for glory.
           </p>
-          <button className="btn-gold hero-battle-btn" onClick={() => setGameOpen(true)}>
-            ⚔️ Enter the Arena
+          <button className="arena-banner" onClick={() => setGameOpen(true)} aria-label="Enter the Arena">
+            <img src={arenaImg} alt="Arena" className="arena-banner-img" />
+            <div className="arena-banner-overlay">
+              <span className="arena-banner-label">⚔️ Enter the Arena</span>
+            </div>
           </button>
         </div>
         <div className="hero-fade" aria-hidden="true" />
