@@ -1014,9 +1014,6 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
                 </div>
                 <p className="bg-sub" style={{fontSize:'0.75rem',opacity:0.5}}>Stats are sealed by fate — no rerolls.</p>
                 <div className="bg-enchant-actions">
-                  <button className="bg-cta bg-cta--ghost" onClick={()=>{setEnchanted(false);setBase({strength:0,health:0,stamina:0});setPlayerName('');}}>
-                    ↺ New Alignment/Difficulty
-                  </button>
                   <button className="bg-cta" onClick={()=>{setAllocDice([]);setAssigns([null,null,null]);setSelDie(null);setPhase('rolling');}} style={{borderColor:ac.color,color:ac.color}}>
                     🎲 Roll Dice →
                   </button>
