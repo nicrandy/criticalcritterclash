@@ -154,12 +154,23 @@ let _uid = 0;
 const uid  = () => ++_uid;
 const pick = <T,>(arr: T[]) => arr[randInt(0, arr.length - 1)];
 
-function generateAIStats(stage: number): Stats {
-  // Stage 1 → 1–5, Stage 2 → 2–6 … Stage 5+ → 5–9 (capped at 9)
-  const min = Math.min(stage, 5);
-  const max = Math.min(stage + 4, 9);
-  const r = () => randInt(min, max);
-  return { strength: r(), health: r(), stamina: r() };
+// Stage-based AI: base grows 2 pts/stage, 3-pt spread, dice added on top.
+// No 9-cap — AI stats can exceed 9 at high stages (stage 5 → 8-12, stage 9 → 16-19+).
+function generateAIForStage(stage: number): { base: Stats; final: Stats; rarity: Rarity } {
+  const base_min = Math.max(0, (stage - 1) * 2);
+  const base_max = base_min + 3;
+  const base: Stats = {
+    strength: randInt(base_min, base_max),
+    health:   randInt(base_min, base_max),
+    stamina:  randInt(base_min, base_max),
+  };
+  // Dice: stages 1-2 → 1 die, 3-4 → 2 dice, 5+ → 3 dice
+  const numDice = stage <= 2 ? 1 : stage <= 4 ? 2 : 3;
+  const dice = Array.from({ length: numDice }, rollD6);
+  const final = aiAllocateDice(base, dice);
+  // Rarity for display / name pool
+  const aiRarity: Rarity = stage <= 2 ? 'rare' : stage <= 4 ? 'unique' : 'legendary';
+  return { base, final, rarity: aiRarity };
 }
 
 function aiAllocateDice(base: Stats, dice: number[]): Stats {
@@ -421,23 +432,23 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     if (!allAssigned) return;
     const pFinal: Stats = { strength:finalStat('strength'), health:finalStat('health'), stamina:finalStat('stamina') };
     const aiAlign: Alignment = alignment==='good'?'evil':'good';
-    const aiBase   = generateAIStats(1);
-    const aiName   = pick(AI_NAMES[aiAlign][rarity]);
+    const { base: aiBase, final: aiFinal, rarity: aiRarity } = generateAIForStage(1);
+    const aiName   = pick(AI_NAMES[aiAlign][aiRarity]);
     const pMaxHp   = calcMaxHp(pFinal.health);
-    const aMaxHp   = calcMaxHp(aiBase.health);
+    const aMaxHp   = calcMaxHp(aiFinal.health);
     const aac      = ALIGN_CFG[aiAlign];
 
-    const pF: Fighter = { name:playerName||'Your Critter', rarity, alignment, base, final:pFinal, hp:pMaxHp, maxHp:pMaxHp };
-    const aF: Fighter = { name:aiName, rarity, alignment:aiAlign, base:aiBase, final:aiBase, hp:aMaxHp, maxHp:aMaxHp };
+    const pF: Fighter = { name:playerName||'Your Critter', rarity, alignment, guild: critterMode==='real' ? guild : undefined, base, final:pFinal, hp:pMaxHp, maxHp:pMaxHp };
+    const aF: Fighter = { name:aiName, rarity:aiRarity, alignment:aiAlign, base:aiBase, final:aiFinal, hp:aMaxHp, maxHp:aMaxHp };
     setStage(1);
     setPlayer(pF); setAI(aF); setRound(1); setWinner(null);
     setPlayerHeals(0); setAiHeals(0);
     setPlayerShield(0); setPlayerShieldMax(0); setPlayerDefended(false);
     setAiShield(0);    setAiShieldMax(0);    setAiDefended(false);
     setLog([
-      {id:uid(),type:'info',text:`⚔️  Battle begins!  ${playerName}  vs  ${aiName}`},
+      {id:uid(),type:'info',text:`⚔️  Battle begins!  ${playerName||'Your Critter'}  vs  ${aiName}`},
       {id:uid(),type:'info',text:`You — ${ac.icon} ${ac.label} · STR ${pFinal.strength} · ❤️ ${pMaxHp} HP · 🛡️ DEF ${pFinal.stamina}`},
-      {id:uid(),type:'info',text:`${aiName} — ${aac.icon} ${aac.label} · STR ${aiBase.strength} · ❤️ ${aMaxHp} HP · 🛡️ DEF ${aiBase.stamina}`},
+      {id:uid(),type:'info',text:`${aiName} — ${aac.icon} ${aac.label} · STR ${aiFinal.strength} · ❤️ ${aMaxHp} HP · 🛡️ DEF ${aiFinal.stamina}`},
     ]);
     setBattleStep('choose'); setPlayerAction(null);
     setCombatRoll(null); setRevealedAIAct(null); setRevealedAIRoll(null);
@@ -449,45 +460,21 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   const handleGenerateName = () => setPlayerName(pick(GUILD_NAMES[guild]));
 
   const handleRealStat = (k: StatKey, delta: number) => {
-    const [min, max] = RANK_RANGE[rarity];
-    setBase(b => ({ ...b, [k]: Math.max(min, Math.min(max, b[k] + delta)) }));
+    // Stats are 0–9 regardless of rank; dice allocation adds on top after
+    setBase(b => ({ ...b, [k]: Math.max(0, Math.min(9, b[k] + delta)) }));
   };
 
   const handleRealSetupContinue = () => {
-    const [min] = RANK_RANGE[rarity];
-    setBase({ strength: min, health: min, stamina: min });
+    setBase({ strength: 0, health: 0, stamina: 0 });
     setPlayerName('');
     setPhase('real-stats');
   };
 
-  const handleBeginRealBattle = () => {
-    const name    = playerName.trim() || pick(GUILD_NAMES[guild]);
-    const pFinal  = { ...base };
-    const aiAlign: Alignment = alignment === 'good' ? 'evil' : 'good';
-    const aiBase  = generateAIStats(1);
-    const aiName  = pick(AI_NAMES[aiAlign][rarity]);
-    const pMaxHp  = calcMaxHp(pFinal.health);
-    const aMaxHp  = calcMaxHp(aiBase.health);
-    const aac     = ALIGN_CFG[aiAlign];
-
-    const pF: Fighter = { name, rarity, alignment, guild, base, final: pFinal, hp: pMaxHp, maxHp: pMaxHp };
-    const aF: Fighter = { name: aiName, rarity, alignment: aiAlign, base: aiBase, final: aiBase, hp: aMaxHp, maxHp: aMaxHp };
-
-    setCritterMode('real'); setStage(1);
-    setPlayer(pF); setAI(aF); setRound(1); setWinner(null);
-    setPlayerHeals(0); setAiHeals(0);
-    setPlayerShield(0); setPlayerShieldMax(0); setPlayerDefended(false);
-    setAiShield(0);    setAiShieldMax(0);    setAiDefended(false);
-    setLog([
-      {id:uid(),type:'info',text:`⚔️  Battle begins!  ${name}  vs  ${aiName}`},
-      {id:uid(),type:'info',text:`You — ${ac.icon} ${ac.label} · STR ${pFinal.strength} · ❤️ ${pMaxHp} HP · 🛡️ DEF ${pFinal.stamina}`},
-      {id:uid(),type:'info',text:`${aiName} — ${aac.icon} ${aac.label} · STR ${aiBase.strength} · ❤️ ${aMaxHp} HP · 🛡️ DEF ${aiBase.stamina}`},
-    ]);
-    setBattleStep('choose'); setPlayerAction(null);
-    setCombatRoll(null); setRevealedAIAct(null); setRevealedAIRoll(null);
-    setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
-    setPhase('battle');
+  const handleRealProceedToRolling = () => {
+    setAllocDice([]); setAssigns([null, null, null]); setSelDie(null);
+    setPhase('rolling');
   };
+
 
   // ── Combat ──────────────────────────────────────────────────────────────────
   const handleChooseAction = (action: Action) => {
@@ -694,16 +681,16 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     const newStage = stage + 1;
     setStage(newStage);
     const aiAlign: Alignment = alignment==='good'?'evil':'good';
-    const aiBase  = generateAIStats(newStage);
-    const aiName  = pick(AI_NAMES[aiAlign][rarity]);
-    const aMaxHp  = calcMaxHp(aiBase.health);
+    const { base: aiBase, final: aiFinal, rarity: aiRarity } = generateAIForStage(newStage);
+    const aiName  = pick(AI_NAMES[aiAlign][aiRarity]);
+    const aMaxHp  = calcMaxHp(aiFinal.health);
     setPlayer(p=>p?{...p,hp:p.maxHp}:p);
-    setAI({name:aiName,rarity,alignment:aiAlign,base:aiBase,final:aiBase,hp:aMaxHp,maxHp:aMaxHp});
+    setAI({name:aiName,rarity:aiRarity,alignment:aiAlign,base:aiBase,final:aiFinal,hp:aMaxHp,maxHp:aMaxHp});
     setRound(1); setWinner(null); setPlayerHeals(0); setAiHeals(0);
     setPlayerShield(0); setPlayerShieldMax(0); setPlayerDefended(false);
     setAiShield(0);    setAiShieldMax(0);    setAiDefended(false);
     setLog([{id:uid(),type:'info',text:`⚔️  Stage ${newStage} — ${aiName} enters!`},
-            {id:uid(),type:'info',text:`${aiName} — STR ${aiBase.strength} · ❤️ ${aMaxHp} HP · 🛡️ DEF ${aiBase.stamina}`},
+            {id:uid(),type:'info',text:`${aiName} — STR ${aiFinal.strength} · ❤️ ${aMaxHp} HP · 🛡️ DEF ${aiFinal.stamina}`},
             {id:uid(),type:'info',text:`Your HP restored to ${player.maxHp}.`}]);
     setBattleStep('choose'); setPlayerAction(null); setCombatRoll(null);
     setRevealedAIAct(null); setRevealedAIRoll(null);
@@ -829,7 +816,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
             <p className="bg-eyebrow">Your Card · {GUILD_ICONS[guild]} {guild[0].toUpperCase()+guild.slice(1)}</p>
             <h2 className="bg-title">Enter Your Stats</h2>
             <p className="bg-sub" style={{fontSize:'0.8rem',opacity:0.65}}>
-              {rarity[0].toUpperCase()+rarity.slice(1)} range: {RANK_RANGE[rarity][0]}–{RANK_RANGE[rarity][1]}
+              Enter your card's stats (0–9). Roll dice next to add bonus points.
             </p>
 
             <div className="bg-name-row">
@@ -851,20 +838,17 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
                 ['strength','⚔️','Strength'],
                 ['health',  '❤️','Health'  ],
                 ['stamina', '🛡️','Defense' ],
-              ] as [StatKey,string,string][]).map(([k,icon,name])=>{
-                const [mn,mx] = RANK_RANGE[rarity];
-                return (
-                  <div key={k} className="bg-stat-row">
-                    <span className="bg-stat-icon">{icon}</span>
-                    <span className="bg-stat-name">{name}</span>
-                    <div className="bg-stat-ctrl">
-                      <button onClick={()=>handleRealStat(k,-1)} disabled={base[k]<=mn}>−</button>
-                      <span>{base[k]}</span>
-                      <button onClick={()=>handleRealStat(k, 1)} disabled={base[k]>=mx}>+</button>
-                    </div>
+              ] as [StatKey,string,string][]).map(([k,icon,name])=>(
+                <div key={k} className="bg-stat-row">
+                  <span className="bg-stat-icon">{icon}</span>
+                  <span className="bg-stat-name">{name}</span>
+                  <div className="bg-stat-ctrl">
+                    <button onClick={()=>handleRealStat(k,-1)} disabled={base[k]<=0}>−</button>
+                    <span>{base[k]}</span>
+                    <button onClick={()=>handleRealStat(k, 1)} disabled={base[k]>=9}>+</button>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
 
             <div className="bg-es-hp" style={{maxWidth:'340px',width:'100%'}}>
@@ -872,9 +856,9 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
               <span style={{color:ac.color,fontFamily:'var(--font-heading)',fontWeight:700}}>{calcMaxHp(base.health)}</span>
             </div>
 
-            <button className="bg-cta" onClick={handleBeginRealBattle}
+            <button className="bg-cta" onClick={handleRealProceedToRolling}
               style={{borderColor:ac.color,color:ac.color}}>
-              ⚔️ Enter the Arena
+              🎲 Roll Dice →
             </button>
           </div>
         )}
