@@ -16,6 +16,27 @@ export interface Event {
   url: string | null;
 }
 
+// ── Score reading ─────────────────────────────────────────────────────────────
+
+export interface ScoreData {
+  alignment: { good: number; evil: number };
+  guilds: { guild: string; total_points: number }[];
+}
+
+export async function fetchScores(): Promise<ScoreData> {
+  const [alignRes, guildRes] = await Promise.all([
+    supabase.from('alignment_scores').select('alignment, total_points'),
+    supabase.from('guild_scores').select('guild, total_points').order('total_points', { ascending: false }),
+  ]);
+  const rows = alignRes.data ?? [];
+  const good = rows.find((r: { alignment: string; total_points: number }) => r.alignment === 'good')?.total_points ?? 0;
+  const evil = rows.find((r: { alignment: string; total_points: number }) => r.alignment === 'evil')?.total_points ?? 0;
+  return {
+    alignment: { good, evil },
+    guilds: (guildRes.data ?? []) as { guild: string; total_points: number }[],
+  };
+}
+
 // ── Global score tracking ─────────────────────────────────────────────────────
 
 /** Points awarded per victorious stage, keyed by starting rank */

@@ -1356,6 +1356,175 @@ body {
 }
 .cc-event-link:hover { color: var(--gold-light); }
 
+/* ── BALANCE OF POWER ─────────────────────────────── */
+.war-section {
+  background: linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-mid) 100%);
+}
+
+/* Tug-of-war bar */
+.war-tug-wrap {
+  width: 100%;
+  max-width: 640px;
+  margin: 1.5rem auto 0;
+}
+
+.war-tug-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.war-label {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+}
+.war-label--good { color: #fde68a; }
+.war-label--evil { color: #ef4444; }
+
+.war-tug-leader {
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.war-tug-track {
+  width: 100%;
+  height: 34px;
+  border-radius: 17px;
+  overflow: hidden;
+  display: flex;
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.war-tug-good {
+  height: 100%;
+  background: linear-gradient(90deg, #78510a 0%, #c9a84c 60%, #fde68a 100%);
+  transition: width 1.4s cubic-bezier(0.34,1.1,0.64,1);
+  box-shadow: 4px 0 16px rgba(201,168,76,0.45);
+  border-radius: 0;
+}
+
+.war-tug-evil {
+  height: 100%;
+  background: linear-gradient(90deg, #b91c1c 0%, #ef4444 100%);
+  transition: width 1.4s cubic-bezier(0.34,1.1,0.64,1);
+  box-shadow: -4px 0 16px rgba(239,68,68,0.35);
+  flex: 1;
+}
+
+.war-tug-scores {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.55rem;
+}
+
+.war-score {
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+}
+.war-score--good { color: #fde68a; }
+.war-score--evil { color: #ef4444; }
+
+/* Guild standings */
+.war-guilds {
+  width: 100%;
+  max-width: 540px;
+  margin: 2.5rem auto 0;
+}
+
+.war-guilds-title {
+  font-family: var(--font-heading);
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.war-guild-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.8rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid var(--border);
+  transition: border-color 0.2s, background 0.2s;
+}
+.war-guild-row--top {
+  background: rgba(201,168,76,0.07);
+  border-color: rgba(201,168,76,0.35);
+}
+
+.war-guild-rank {
+  font-family: var(--font-heading);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.war-guild-row--top .war-guild-rank { font-size: 1rem; }
+
+.war-guild-icon {
+  font-size: 1.35rem;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.war-guild-name {
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  color: var(--text-bright);
+  width: 68px;
+  flex-shrink: 0;
+  text-transform: capitalize;
+}
+
+.war-guild-track {
+  flex: 1;
+  height: 14px;
+  background: var(--bg-card);
+  border-radius: 7px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.war-guild-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5a3d0e, #c9a84c);
+  transition: width 1.4s cubic-bezier(0.34,1.1,0.64,1);
+}
+.war-guild-fill--top {
+  background: linear-gradient(90deg, #a07820, #fde68a);
+  box-shadow: 0 0 10px rgba(253,230,138,0.4);
+}
+
+.war-guild-pts {
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  color: var(--gold);
+  width: 58px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.war-pts-lbl {
+  font-size: 0.62rem;
+  opacity: 0.6;
+}
+
 /* ── FOOTER ───────────────────────────────────────── */
 .site-footer {
   text-align: center;
