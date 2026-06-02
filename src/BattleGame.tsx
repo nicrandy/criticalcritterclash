@@ -684,14 +684,14 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     const { base: aiBase, final: aiFinal, rarity: aiRarity } = generateAIForStage(newStage);
     const aiName  = pick(AI_NAMES[aiAlign][aiRarity]);
     const aMaxHp  = calcMaxHp(aiFinal.health);
-    setPlayer(p=>p?{...p,hp:p.maxHp}:p);
+    // HP and heal count carry over — no restoration between stages
     setAI({name:aiName,rarity:aiRarity,alignment:aiAlign,base:aiBase,final:aiFinal,hp:aMaxHp,maxHp:aMaxHp});
-    setRound(1); setWinner(null); setPlayerHeals(0); setAiHeals(0);
+    setRound(1); setWinner(null); setAiHeals(0);
     setPlayerShield(0); setPlayerShieldMax(0); setPlayerDefended(false);
     setAiShield(0);    setAiShieldMax(0);    setAiDefended(false);
     setLog([{id:uid(),type:'info',text:`⚔️  Stage ${newStage} — ${aiName} enters!`},
             {id:uid(),type:'info',text:`${aiName} — STR ${aiFinal.strength} · ❤️ ${aMaxHp} HP · 🛡️ DEF ${aiFinal.stamina}`},
-            {id:uid(),type:'info',text:`Your HP restored to ${player.maxHp}.`}]);
+            {id:uid(),type:'info',text:`⚠️ Your HP carries over: ${player.hp} / ${player.maxHp} · Heals remaining: ${3 - playerHeals}`}]);
     setBattleStep('choose'); setPlayerAction(null); setCombatRoll(null);
     setRevealedAIAct(null); setRevealedAIRoll(null);
     setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
