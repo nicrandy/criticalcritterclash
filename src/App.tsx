@@ -205,7 +205,7 @@ function App() {
         <div className="section-header">
           <p className="section-eyebrow">The Roster</p>
           <h2 className="section-title">Meet the Critters</h2>
-          <p className="section-sub">Each one handcrafted. Click to see their stats.</p>
+          <p className="section-sub">Sourced from the Wyoming wilds. Hand-built, battle-hardened, and ready to clash.</p>
         </div>
 
         {/* Photo grid — real critter photos */}

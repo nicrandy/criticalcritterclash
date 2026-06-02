@@ -746,7 +746,7 @@ body {
   position: relative;
   display: block;
   width: min(680px, 92%);
-  margin-top: 2.5rem;
+  margin: 2.5rem auto 0;
   border-radius: 1.5rem;
   overflow: hidden;
   border: 1.5px solid rgba(201,168,76,0.35);
