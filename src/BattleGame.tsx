@@ -477,6 +477,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   const [bonusPassive,    setBonusPassive]    = useState(0);
   const [perkChoices,     setPerkChoices]     = useState<PerkDef[]>([]);
   const [isBoss,          setIsBoss]          = useState(false);
+  const [deathCount,      setDeathCount]      = useState(0);   // bonfire restarts this session
 
   // Turn-order spin wheel
   const [turnSpinning, setTurnSpinning] = useState(false);
@@ -891,7 +892,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     const bossStage = newStage % 3 === 0;
     setIsBoss(bossStage);
     const aiAlign: Alignment = alignment==='good'?'evil':'good';
-    const { base: aiBase, final: aiFinal, rarity: aiRarity } = generateAIForStage(newStage);
+    const { base: aiBase, final: aiFinal, rarity: aiRarity } = generateAIForStage(newStage + deathCount);
     const aiName  = pick(AI_NAMES[aiAlign][aiRarity]);
     const aMaxHp  = calcMaxHp(aiFinal.health);
     // Boss: +5 to one random stat + a real critter photo
@@ -919,6 +920,53 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setPhase('battle');
   };
 
+  // Bonfire restart: keep player stats, return to stage after last boss, enemies +1 level per death
+  const handleBonfireRestart = () => {
+    if (!player) return;
+    const newDeathCount = deathCount + 1;
+    setDeathCount(newDeathCount);
+
+    const aiAlign: Alignment = alignment === 'good' ? 'evil' : 'good';
+    // AI is generated for bonfireStage scaled up by newDeathCount deaths
+    const { base: aiBase, final: aiFinal, rarity: aiRarity } = generateAIForStage(bonfireStage + newDeathCount);
+    const aiName  = pick(AI_NAMES[aiAlign][aiRarity]);
+    const aMaxHp  = calcMaxHp(aiFinal.health);
+
+    // Boss check (bonfires are always at stage ≡1 mod 3, so never a boss — kept for safety)
+    const bossStage     = bonfireStage % 3 === 0;
+    const STAT_KEYS: StatKey[] = ['strength', 'health', 'stamina'];
+    const bossBoostStat = bossStage ? pick(STAT_KEYS) : undefined;
+    const bossImg       = bossStage && CRITTER_PHOTOS.length > 0 ? pick(CRITTER_PHOTOS) : undefined;
+    const bossFinal     = bossBoostStat ? { ...aiFinal, [bossBoostStat]: aiFinal[bossBoostStat] + 5 } : aiFinal;
+    const bossFinalMaxHp = bossBoostStat === 'health' ? calcMaxHp(bossFinal.health) : aMaxHp;
+
+    // Player keeps all final stats; HP is fully restored at the bonfire
+    const restoredPlayer: Fighter = { ...player, hp: player.maxHp };
+    setPlayer(restoredPlayer);
+    setAI({ name: aiName, rarity: aiRarity, alignment: aiAlign, base: aiBase,
+            final: bossFinal, hp: bossFinalMaxHp, maxHp: bossFinalMaxHp, bossBoostStat, img: bossImg });
+
+    setStage(bonfireStage);
+    setIsBoss(bossStage);
+    setRound(1); setWinner(null); setAiHeals(0);
+    // playerHeals intentionally NOT reset — remaining heals carry over from death
+    setPlayerShield(restoredPlayer.final.stamina); setPlayerShieldMax(restoredPlayer.final.stamina); setPlayerDefended(false);
+    setAiShield(bossFinal.stamina);               setAiShieldMax(bossFinal.stamina);               setAiDefended(false);
+
+    const bossTag = bossStage ? ' 👑 BOSS' : '';
+    setLog([
+      { id: uid(), type: 'info', text: `🔥 Bonfire — ${restoredPlayer.name} rises at Stage ${bonfireStage}` },
+      { id: uid(), type: 'info', text: `HP restored to ${restoredPlayer.maxHp} · STR ${restoredPlayer.final.strength} · DEF ${restoredPlayer.final.stamina} · 💊 ${healsLeft}/${maxPlayerHeals} heals` },
+      { id: uid(), type: 'info', text: `⚠️ Enemies are +${newDeathCount} level${newDeathCount !== 1 ? 's' : ''} harder` },
+      { id: uid(), type: 'info', text: `⚔️  Stage ${bonfireStage}${bossTag} — ${aiName} enters!` },
+    ]);
+
+    setBattleStep('choose'); setPlayerAction(null); setCombatRoll(null);
+    setRevealedAIAct(null); setRevealedAIRoll(null);
+    setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
+    setPhase('battle');
+  };
+
   const handleReset = () => {
     setPhase('mode'); setAllocDice([]); setAssigns([null,null,null]); setSelDie(null);
     setPlayer(null); setAI(null); setLog([]); setRound(1);
@@ -926,7 +974,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setPlayerHeals(0); setAiHeals(0);
     setPlayerShield(0); setPlayerShieldMax(0); setPlayerDefended(false);
     setAiShield(0);    setAiShieldMax(0);    setAiDefended(false);
-    setStage(1); setIsBoss(false);
+    setStage(1); setIsBoss(false); setDeathCount(0);
     setMaxPlayerHeals(3); setBonusAttackRoll(0); setBonusPassive(0); setPerkChoices([]);
     setBattleStep('choose');
     setPlayerAction(null); setCombatRoll(null); setCombatSettled(false); setRevealedAIAct(null); setRevealedAIRoll(null);
@@ -1009,6 +1057,11 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     handleNextBattle(updatedPlayer ?? undefined);
   };
 
+  // ─── Derived values ──────────────────────────────────────────────────────────
+  // Bonfire = stage immediately after the last defeated boss (boss stages = multiples of 3)
+  const bonfireStage = Math.max(1, Math.floor((stage - 1) / 3) * 3 + 1);
+  const healsLeft    = Math.max(0, maxPlayerHeals - playerHeals);
+
   // ─── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="bg-overlay" onClick={phase === 'battle' || phase === 'result' || phase === 'perk' ? undefined : onClose}>
@@ -1028,7 +1081,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
           <div className="bg-round-badge">
             <span className="bg-badge-rnd">Rnd {round}</span>
             <span className="bg-badge-dot">·</span>
-            <span className="bg-badge-stg">Stage {stage}</span>
+            <span className="bg-badge-stg">Stage {stage}{deathCount>0&&<span className="bg-badge-penalty">+{deathCount}</span>}</span>
             {isBoss && <span className="bg-badge-boss">👑 BOSS</span>}
           </div>
         )}
@@ -1458,7 +1511,24 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
               {winner==='player'?'Victory!':'Defeated'}
             </h2>
             {winner==='player'&&streak>0&&<p className="bg-streak">🔥 {streak} win{streak>1?'s':''} in a row</p>}
-            <p className="bg-sub">{winner==='player'?`${ac.icon} ${playerName} stands triumphant!`:`${playerName} has fallen. Train harder.`}</p>
+            {winner==='player'
+              ? <p className="bg-sub">{ac.icon} {playerName} stands triumphant!</p>
+              : player && <>
+                  <p className="bg-sub">{player.name} has fallen at Stage {stage}.</p>
+                  <div className="bg-bonfire-preview">
+                    <div className="bg-bfp-row">
+                      <span>🔥 Bonfire · <strong>Stage {bonfireStage}</strong></span>
+                      <span>⚠️ Enemies <strong>+{deathCount+1} lvl</strong> on restart</span>
+                    </div>
+                    <div className="bg-bfp-stats">
+                      <span title="Strength">⚔️ {player.final.strength}</span>
+                      <span title="Health">❤️ {player.final.health}</span>
+                      <span title="Defense">🛡️ {player.final.stamina}</span>
+                      <span title="Heals remaining">💊 {healsLeft}/{maxPlayerHeals}</span>
+                    </div>
+                  </div>
+                </>
+            }
             <div className="bg-result-log">
               {log.slice(-6).map(e=>(
                 <p key={e.id} className={['bl-entry',`bl-${e.type}`].join(' ')}>{e.text}</p>
@@ -1470,9 +1540,14 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
                   ✨ Choose a Perk →
                 </button>
               ) : (
-                <button className="bg-cta bg-cta--ghost" onClick={handleReset}>
-                  ↺ Try Again
-                </button>
+                <div className="bg-defeat-options">
+                  <button className="bg-cta bg-cta--bonfire" onClick={handleBonfireRestart}>
+                    🔥 Return to Bonfire — Stage {bonfireStage}
+                  </button>
+                  <button className="bg-cta bg-cta--ghost" onClick={handleReset}>
+                    Start with new character
+                  </button>
+                </div>
               )}
             </div>
           </div>

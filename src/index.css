@@ -1274,6 +1274,44 @@ body {
 }
 .bg-result-btns { display:flex; gap:0.75rem; flex-wrap:wrap; justify-content:center; }
 
+/* ── Defeat screen: bonfire preview ── */
+.bg-bonfire-preview {
+  background:rgba(249,115,22,0.07);
+  border:1px solid rgba(249,115,22,0.28);
+  border-radius:10px; padding:0.6rem 0.9rem;
+  width:100%; max-width:360px;
+  display:flex; flex-direction:column; gap:0.4rem;
+  margin:0.2rem 0;
+}
+.bg-bfp-row {
+  display:flex; justify-content:space-between;
+  font-size:0.78rem; color:rgba(255,255,255,0.65);
+}
+.bg-bfp-row strong { color:#f97316; }
+.bg-bfp-stats {
+  display:flex; gap:0.8rem;
+  font-size:0.82rem; font-family:var(--font-heading);
+  color:rgba(255,255,255,0.55);
+}
+
+/* ── Defeat options stack ── */
+.bg-defeat-options {
+  display:flex; flex-direction:column; gap:0.5rem; width:100%; align-items:center;
+}
+
+/* ── Bonfire CTA button ── */
+.bg-cta--bonfire {
+  border-color:#f97316 !important;
+  color:#f97316 !important;
+}
+.bg-cta--bonfire:hover { background:rgba(249,115,22,0.1); }
+
+/* ── Stage badge death-count penalty ── */
+.bg-badge-penalty {
+  font-size:0.6rem; font-weight:700;
+  color:#f97316; margin-left:1px; opacity:0.9;
+}
+
 /* ── Round + Stage badge (top-left pill) ── */
 .bg-round-badge {
   position:absolute; top:0.7rem; left:0.7rem;
