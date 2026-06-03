@@ -1544,7 +1544,9 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
                   <button className="bg-cta bg-cta--bonfire" onClick={handleBonfireRestart}>
                     🔥 Return to Bonfire — Stage {bonfireStage}
                   </button>
-                  <button className="bg-cta bg-cta--ghost" onClick={handleReset}>
+                  <button className="bg-cta bg-cta--ghost" onClick={()=>{
+                    if(window.confirm('Are you sure? This will restart your character at stage 1.')) handleReset();
+                  }}>
                     Start with new character
                   </button>
                 </div>
