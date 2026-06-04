@@ -67,6 +67,42 @@ export async function submitStageScore(
   }
 }
 
+// ── Battle analytics tracking ──────────────────────────────────────────────────
+
+export interface RoundSnap {
+  r: number;
+  first: 'player' | 'ai';
+  p_act: string;  p_roll: number;
+  ai_act: string; ai_roll: number;
+  p_hp_start:  number; p_hp_end:  number;
+  ai_hp_start: number; ai_hp_end: number;
+  p_shield_start:  number; p_shield_end:  number;
+  ai_shield_start: number; ai_shield_end: number;
+  p_dmg: number; ai_dmg: number;
+  p_crit: boolean; ai_crit: boolean;
+}
+
+export interface BattleRecord {
+  stage: number; death_count: number; is_boss: boolean; boss_boost_stat: string | null;
+  p_alignment: string; p_rarity: string; p_guild: string;
+  p_str: number; p_hp_stat: number; p_def: number; p_max_hp: number;
+  p_max_heals: number; p_bonus_atk: number; p_bonus_passive: number;
+  ai_alignment: string; ai_rarity: string;
+  ai_str: number; ai_hp_stat: number; ai_def: number; ai_max_hp: number;
+  winner: 'player' | 'ai';
+  total_rounds: number; final_p_hp: number; final_ai_hp: number;
+  rounds: RoundSnap[];
+}
+
+/** Fire-and-forget: save one completed battle row to Supabase */
+export async function recordBattle(rec: BattleRecord): Promise<void> {
+  try {
+    await supabase.from('battles').insert([rec]);
+  } catch {
+    // never crash the game
+  }
+}
+
 /** Format start/end dates into a readable range, e.g. "May 23 – 25" or "September 7" */
 export function formatEventDate(start: string, end: string | null): string {
   const startDt = new Date(start + 'T12:00:00');

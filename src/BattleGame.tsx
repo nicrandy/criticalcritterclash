@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { rarityColor, rarityGlow } from './critters';
-import { submitStageScore } from './supabaseClient';
+import { submitStageScore, recordBattle, type BattleRecord, type RoundSnap } from './supabaseClient';
 
 // ─── Critter photos (used as boss portraits) ──────────────────────────────────
 const _critterMods = import.meta.glob(
@@ -37,6 +37,12 @@ interface Spotlight {
 }
 interface FloatDmg { val: number; color: string; side: 'player' | 'ai'; id: number; }
 interface PerkDef  { id: string; name: string; icon: string; desc: string; value?: number; }
+
+interface BattleMeta {
+  p: Fighter; a: Fighter;
+  stage: number; deathCount: number; isBoss: boolean;
+  maxHeals: number; bonusAtk: number; bonusPass: number;
+}
 interface NamePart { word: string; bonus: Partial<Record<StatKey,number>>; bonusLabel: string; }
 
 // ─── Static data ──────────────────────────────────────────────────────────────
@@ -103,7 +109,7 @@ const DIFFICULTY_CFG: Record<Rarity, { diff: string; icon: string; desc: string 
 const ACTION_CFG: Record<Action, { icon: string; label: string }> = {
   attack: { icon: '⚔️', label: 'Attack'  },
   defend: { icon: '🛡️', label: 'Defend'  },
-  heal:   { icon: '💊', label: 'Heal'    },
+  heal:   { icon: '🧪', label: 'Heal'    },
 };
 
 const IDLE_SPOTLIGHT: Spotlight = { title:'', detail:'', color:'#888', type:'idle' };
@@ -489,7 +495,9 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   const [adjRollsLeft,     setAdjRollsLeft]     = useState(3);
   const [critterRollsLeft, setCritterRollsLeft] = useState(3);
 
-  const logRef = useRef<HTMLDivElement>(null);
+  const logRef        = useRef<HTMLDivElement>(null);
+  const roundsRef     = useRef<RoundSnap[]>([]);
+  const battleMetaRef = useRef<BattleMeta | null>(null);
   useEffect(() => { if(logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [log]);
 
   const rc = rarityColor[rarity];
@@ -588,6 +596,9 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setStage(1); setIsBoss(false);
     setMaxPlayerHeals(3); setBonusAttackRoll(0); setBonusPassive(0); setPerkChoices([]);
     setPlayer(pF); setAI(aF); setRound(1); setWinner(null);
+    roundsRef.current = [];
+    battleMetaRef.current = { p:pF, a:aF, stage:1, deathCount:0, isBoss:false,
+      maxHeals:3, bonusAtk:0, bonusPass:0 };
     setPlayerHeals(0); setAiHeals(0);
     setPlayerShield(pFinal.stamina); setPlayerShieldMax(pFinal.stamina); setPlayerDefended(false);
     setAiShield(aiFinal.stamina);    setAiShieldMax(aiFinal.stamina);    setAiDefended(false);
@@ -672,15 +683,23 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     if (pAct === 'heal')   setPlayerHeals(h => h + 1);
     if (aAct === 'heal')   setAiHeals(h => h + 1);
     if (pAct === 'defend') { setPlayerDefended(true); setPlayerShieldMax(m => Math.max(m, curPS + pRoll + curP.final.stamina)); }
-    if (aAct === 'defend') { setAiDefended(true);    setAiShieldMax(m => Math.max(m, curAS + aRoll + curA.final.stamina)); }
+
+    // AI defend: DEF stat increases by the roll, shield fully restores to new stat value
+    const aNewStamina = aAct === 'defend' ? curA.final.stamina + aRoll : curA.final.stamina;
+    if (aAct === 'defend') {
+      setAiDefended(true);
+      setAiShieldMax(aNewStamina);
+      setAI(p => p ? { ...p, final: { ...p.final, stamina: aNewStamina } } : p);
+    }
 
     const pass_p = calcPassive(curP) + bonusPassive, pass_a = calcPassive(curA);
 
     // ── Shield gains this round ──────────────────────────────────────────────
     const pShieldGain = pAct === 'defend' ? pRoll + curP.final.stamina : 0;
-    const aShieldGain = aAct === 'defend' ? aRoll + curA.final.stamina : 0;
+    const aShieldGain = aRoll; // used in log/spotlight to show the stat roll bonus
     let pShieldRun = curPS + pShieldGain;
-    let aShieldRun = curAS + aShieldGain;
+    // AI defend: shield goes TO the new stamina value (full restore), not additive
+    let aShieldRun = aAct === 'defend' ? aNewStamina : curAS;
 
     // ── Player attacks AI ────────────────────────────────────────────────────
     let pDmg = 0, pCrit = false, aShieldAbsorb = 0;
@@ -751,7 +770,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
         text:`🛡️ ${pMove}: +${pShieldGain} shield (${curP.final.stamina} DEF + roll ${pRoll})`});
     } else {
       entries.push({id:uid(),type:'heal',who:'player',
-        text:`💊 ${pMove}: +${pHeal} HP (roll ${pRoll} · ${Math.round((0.30+0.10*pRoll)*100)}% of max)`});
+        text:`🧪 ${pMove}: +${pHeal} HP (roll ${pRoll} · ${Math.round((0.30+0.10*pRoll)*100)}% of max)`});
     }
 
     if (aAct==='attack') {
@@ -760,13 +779,24 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
         text:`${aac.icon} ${aMove}: roll ${aRoll}+${curA.final.strength}${aCrit?'+3🎯':''}=${aRoll+curA.final.strength+(aCrit?3:0)}${sNote} → ${aDmg} dmg`});
     } else if (aAct==='defend') {
       entries.push({id:uid(),type:'block',who:'ai',
-        text:`🛡️ ${curA.name} ${aMove}: +${aShieldGain} shield (${curA.final.stamina} DEF + roll ${aRoll})`});
+        text:`🛡️ ${curA.name} ${aMove}: DEF ${curA.final.stamina}+${aRoll}→${aNewStamina} · shield restored ${aNewStamina}/${aNewStamina}`});
     } else {
       entries.push({id:uid(),type:'heal',who:'ai',
-        text:`💊 ${curA.name} ${aMove}: +${aHeal} HP (roll ${aRoll} · ${Math.round((0.30+0.10*aRoll)*100)}% of max)`});
+        text:`🧪 ${curA.name} ${aMove}: +${aHeal} HP (roll ${aRoll} · ${Math.round((0.30+0.10*aRoll)*100)}% of max)`});
     }
     if (aiDefeated||playerDefeated)
       entries.push({id:uid(),type:'info',text:aiDefeated?`🏆 ${curA.name} defeated! Victory!`:`💀 ${curP.name} falls! ${aac.icon} ${curA.name} wins.`});
+
+    // ── Record this round ─────────────────────────────────────────────────────
+    roundsRef.current.push({
+      r: round, first: goesFirst,
+      p_act: pAct, p_roll: pRoll, ai_act: aAct, ai_roll: aRoll,
+      p_hp_start: curP.hp,  p_hp_end: playerHpFinal,
+      ai_hp_start: curA.hp, ai_hp_end: aiHpFinal,
+      p_shield_start: curPS,  p_shield_end: pShieldFinal,
+      ai_shield_start: curAS, ai_shield_end: aShieldFinal,
+      p_dmg: pDmg, ai_dmg: aDmg, p_crit: pCrit, ai_crit: aCrit,
+    });
 
     // ── Animation ─────────────────────────────────────────────────────────────
     const pSpotType: Spotlight['type'] = pAct==='attack'?(pCrit?'critical':'attack'):pAct==='defend'?'block':'heal';
@@ -824,17 +854,16 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
         setAI(p=>p?{...p,hp:aiHpFinal}:p);
         showSpot({title:`+${aHeal} HP`,detail:`${curA.name}: ${aiHpFinal} HP`,color:'#4ade80',type:'heal'});
       } else {
-        // Shield bar was already raised at announcement time (both branches set it
-        // synchronously when a-act fires). Just confirm with the spotlight here.
-        showSpot({title:`🛡️ +${aShieldGain} Shield`,
-          detail:`${curA.final.stamina} DEF + roll ${aRoll} · +${aShieldGain} to barrier`,color:'#6ee7b7',type:'block'});
+        // Shield already raised at announcement. Confirm with spotlight.
+        showSpot({title:`🛡️ +${aShieldGain} DEF · Fully Restored`,
+          detail:`${curA.final.stamina}→${aNewStamina} DEF · Shield: ${aNewStamina}/${aNewStamina}`,color:'#6ee7b7',type:'block'});
       }
     };
 
     if (goesFirst === 'ai') {
       // ── AI goes first (a-act → p-hit → p-act → a-hit) ────────────────────────
       // If AI is defending, show the shield bar going up immediately at announcement time
-      if (aAct === 'defend') setAiShield(curAS + aShieldGain);
+      if (aAct === 'defend') setAiShield(aNewStamina);
       setAnimStep('a-act');
       showSpot({title:aMove, detail:`${aac.icon} ${ACTION_CFG[aAct].label}${isBoss?' · 👑 Boss':''}`, color:aac.color, type:aSpotType});
 
@@ -856,7 +885,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
       // ── Player goes first (p-act → a-hit → a-act → p-hit) ───────────────────
       // Both actions were chosen simultaneously — if AI is defending, show its
       // shield bar going up right now so it's visible before the player hits.
-      if (aAct === 'defend') setAiShield(curAS + aShieldGain);
+      if (aAct === 'defend') setAiShield(aNewStamina);
       setAnimStep('p-act');
       showSpot({title:pMove, detail:`${ac.icon} ${ACTION_CFG[pAct].label}`, color:ac.color, type:pSpotType});
 
@@ -880,7 +909,29 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   const finishRound = (entries:LogEntry[], _p:number, _a:number, rWinner:'player'|'ai'|null) => {
     setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
     setLog(p=>[...p,...entries]); setRound(p=>p+1);
-    if (rWinner) { setWinner(rWinner); if(rWinner==='player')setStreak(p=>p+1); setPhase('result'); }
+    if (rWinner) {
+      setWinner(rWinner); if(rWinner==='player')setStreak(p=>p+1); setPhase('result');
+      // Fire-and-forget battle analytics
+      const meta = battleMetaRef.current;
+      if (meta) {
+        const rec: BattleRecord = {
+          stage: meta.stage, death_count: meta.deathCount, is_boss: meta.isBoss,
+          boss_boost_stat: meta.a.bossBoostStat ?? null,
+          p_alignment: meta.p.alignment, p_rarity: meta.p.rarity, p_guild: meta.p.guild ?? 'none',
+          p_str: meta.p.final.strength, p_hp_stat: meta.p.final.health,
+          p_def: meta.p.final.stamina, p_max_hp: meta.p.maxHp,
+          p_max_heals: meta.maxHeals, p_bonus_atk: meta.bonusAtk, p_bonus_passive: meta.bonusPass,
+          ai_alignment: meta.a.alignment, ai_rarity: meta.a.rarity,
+          ai_str: meta.a.final.strength, ai_hp_stat: meta.a.final.health,
+          ai_def: meta.a.final.stamina, ai_max_hp: meta.a.maxHp,
+          winner: rWinner, total_rounds: roundsRef.current.length,
+          final_p_hp: _p, final_ai_hp: _a,
+          rounds: [...roundsRef.current],
+        };
+        recordBattle(rec);
+        roundsRef.current = [];
+      }
+    }
     else { setBattleStep('choose'); setPlayerAction(null); setCombatRoll(null); setRevealedAIAct(null); setRevealedAIRoll(null); }
   };
 
@@ -908,6 +959,11 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
            final:bossFinal,hp:bossFinalMaxHp,maxHp:bossFinalMaxHp,
            bossBoostStat,img:bossImg});
     setRound(1); setWinner(null); setAiHeals(0);
+    roundsRef.current = [];
+    battleMetaRef.current = { p:curPlayer, a:{name:aiName,rarity:aiRarity,alignment:aiAlign,base:aiBase,
+      final:bossFinal,hp:bossFinalMaxHp,maxHp:bossFinalMaxHp,bossBoostStat,img:bossImg},
+      stage:newStage, deathCount, isBoss:bossStage,
+      maxHeals:maxPlayerHeals, bonusAtk:bonusAttackRoll, bonusPass:bonusPassive };
     setPlayerShield(curPlayer.final.stamina); setPlayerShieldMax(curPlayer.final.stamina); setPlayerDefended(false);
     setAiShield(bossFinal.stamina);           setAiShieldMax(bossFinal.stamina);           setAiDefended(false);
     const bossTag = bossStage ? ' 👑 BOSS' : '';
@@ -949,6 +1005,12 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setStage(bonfireStage);
     setIsBoss(bossStage);
     setRound(1); setWinner(null); setAiHeals(0);
+    roundsRef.current = [];
+    battleMetaRef.current = { p:restoredPlayer,
+      a:{name:aiName,rarity:aiRarity,alignment:aiAlign,base:aiBase,
+         final:bossFinal,hp:bossFinalMaxHp,maxHp:bossFinalMaxHp,bossBoostStat,img:bossImg},
+      stage:bonfireStage, deathCount:newDeathCount, isBoss:bossStage,
+      maxHeals:maxPlayerHeals, bonusAtk:bonusAttackRoll, bonusPass:bonusPassive };
     // playerHeals intentionally NOT reset — remaining heals carry over from death
     setPlayerShield(restoredPlayer.final.stamina); setPlayerShieldMax(restoredPlayer.final.stamina); setPlayerDefended(false);
     setAiShield(bossFinal.stamina);               setAiShieldMax(bossFinal.stamina);               setAiDefended(false);
@@ -956,7 +1018,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     const bossTag = bossStage ? ' 👑 BOSS' : '';
     setLog([
       { id: uid(), type: 'info', text: `🔥 Bonfire — ${restoredPlayer.name} rises at Stage ${bonfireStage}` },
-      { id: uid(), type: 'info', text: `HP restored to ${restoredPlayer.maxHp} · STR ${restoredPlayer.final.strength} · DEF ${restoredPlayer.final.stamina} · 💊 ${healsLeft}/${maxPlayerHeals} heals` },
+      { id: uid(), type: 'info', text: `HP restored to ${restoredPlayer.maxHp} · STR ${restoredPlayer.final.strength} · DEF ${restoredPlayer.final.stamina} · 🧪 ${healsLeft}/${maxPlayerHeals} heals` },
       { id: uid(), type: 'info', text: `⚠️ Enemies are +${newDeathCount} level${newDeathCount !== 1 ? 's' : ''} harder` },
       { id: uid(), type: 'info', text: `⚔️  Stage ${bonfireStage}${bossTag} — ${aiName} enters!` },
     ]);
@@ -984,6 +1046,14 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setSelectedAdj(null); setSelectedCritter(null);
     setAdjRollsLeft(3); setCritterRollsLeft(3);
     setTurnSpinning(false); setTurnFirst(null);
+  };
+
+  // ── Between-stage heal (on perk screen) ────────────────────────────────────
+  const handlePerkHeal = () => {
+    if (!player || healsLeft <= 0) return;
+    const healAmt = Math.round(player.maxHp * 0.5);
+    setPlayer(p => p ? { ...p, hp: Math.min(p.maxHp, p.hp + healAmt) } : p);
+    setPlayerHeals(h => h + 1);
   };
 
   // ── Perk flow ───────────────────────────────────────────────────────────────
@@ -1524,7 +1594,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
                       <span title="Strength">⚔️ {player.final.strength}</span>
                       <span title="Health">❤️ {player.final.health}</span>
                       <span title="Defense">🛡️ {player.final.stamina}</span>
-                      <span title="Heals remaining">💊 {healsLeft}/{maxPlayerHeals}</span>
+                      <span title="Heals remaining">🧪 {healsLeft}/{maxPlayerHeals}</span>
                     </div>
                   </div>
                 </>
@@ -1574,8 +1644,14 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
                 </button>
               ))}
             </div>
+            {healsLeft > 0 && (
+              <button className="bg-perk-heal" onClick={handlePerkHeal}>
+                🧪 Use a Heal — restore {Math.round(player.maxHp * 0.5)} HP
+                <span className="bph-uses">{healsLeft} remaining</span>
+              </button>
+            )}
             <p className="bg-sub" style={{opacity:0.4,fontSize:'0.75rem',marginTop:'0.5rem'}}>
-              Your HP ({player.hp}/{player.maxHp}) carries into the next stage.
+              HP: {player.hp}/{player.maxHp} · {healsLeft > 0 ? `🧪 ${healsLeft} heal${healsLeft>1?'s':''} available` : 'No heals left'} — carries into next stage.
             </p>
           </div>
         )}
