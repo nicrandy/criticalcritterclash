@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "npm exec tsc -- && npm exec vite -- build",
     "preview": "vite preview",
     "predeploy": "npm run build && node -e \"const fs = require('fs'); fs.copyFileSync('CNAME', 'dist/CNAME');\"",
@@ -15,8 +15,10 @@
     "@imgly/background-removal-node": "^1.4.5",
     "@napi-rs/canvas": "^1.0.0",
     "@supabase/supabase-js": "^2.106.2",
+    "html5-qrcode": "^2.3.8",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.17.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",

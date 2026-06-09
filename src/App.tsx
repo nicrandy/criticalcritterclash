@@ -115,7 +115,20 @@ function App() {
   const [events,       setEvents]      = useState<Event[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [gameOpen,     setGameOpen]    = useState(false);
+  const [arenaScannedId, setArenaScannedId] = useState<string | null>(null);
   const [scores,       setScores]      = useState<ScoreData | null>(null);
+
+  // Auto-open arena if ?arena=ID is in the URL (coming from critter scan page)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const arenaId = params.get('arena');
+    if (arenaId) {
+      setArenaScannedId(arenaId.toUpperCase());
+      setGameOpen(true);
+      // Clean the URL without reloading
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     supabase
@@ -385,7 +398,7 @@ function App() {
       {/* ── LIGHTBOXES ── */}
       {photoOpen   && <PhotoLightbox src={photoOpen} onClose={() => setPhotoOpen(null)} />}
       {statCritter && <StatLightbox critter={statCritter} onClose={() => setStatCritter(null)} />}
-      {gameOpen    && <BattleGame onClose={() => setGameOpen(false)} />}
+      {gameOpen    && <BattleGame onClose={() => { setGameOpen(false); setArenaScannedId(null); }} scannedId={arenaScannedId} />}
     </div>
   );
 }

@@ -91,6 +91,7 @@ export interface BattleRecord {
   ai_str: number; ai_hp_stat: number; ai_def: number; ai_max_hp: number;
   winner: 'player' | 'ai';
   total_rounds: number; final_p_hp: number; final_ai_hp: number;
+  opponent_id: string | null;
   rounds: RoundSnap[];
 }
 

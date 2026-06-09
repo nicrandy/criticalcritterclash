@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { rarityColor, rarityGlow } from './critters';
-import { submitStageScore, recordBattle, type BattleRecord, type RoundSnap } from './supabaseClient';
+import { supabase, submitStageScore, recordBattle, type BattleRecord, type RoundSnap } from './supabaseClient';
+import { QrScanner } from './QrScanner';
 
 // ─── Critter photos (used as boss portraits) ──────────────────────────────────
 const _critterMods = import.meta.glob(
@@ -15,7 +16,7 @@ type StatKey    = 'strength' | 'health' | 'stamina';
 type Alignment  = 'good' | 'evil';
 type Guild      = 'rabbit' | 'fox' | 'squirrel' | 'rogue';
 type Action     = 'attack' | 'defend' | 'heal';
-type Phase      = 'mode' | 'setup' | 'rolling' | 'allocating' | 'real-setup' | 'real-stats' | 'battle' | 'result' | 'perk';
+type Phase      = 'mode' | 'scan' | 'scan-setup' | 'setup' | 'rolling' | 'allocating' | 'real-setup' | 'real-stats' | 'battle' | 'result' | 'perk';
 type BattleStep = 'choose' | 'player-rolling' | 'animating';
 type AnimStep   = 'idle' | 'p-act' | 'a-hit' | 'a-act' | 'p-hit';
 
@@ -23,7 +24,7 @@ interface Stats   { strength: number; health: number; stamina: number; }
 interface Fighter {
   name: string; rarity: Rarity; alignment: Alignment; guild?: Guild;
   base: Stats; final: Stats; hp: number; maxHp: number;
-  bossBoostStat?: StatKey; img?: string;
+  bossBoostStat?: StatKey; img?: string; opponentId?: string | null;
 }
 interface LogEntry {
   id: number;
@@ -42,6 +43,7 @@ interface BattleMeta {
   p: Fighter; a: Fighter;
   stage: number; deathCount: number; isBoss: boolean;
   maxHeals: number; bonusAtk: number; bonusPass: number;
+  opponentId: string | null;
 }
 interface NamePart { word: string; bonus: Partial<Record<StatKey,number>>; bonusLabel: string; }
 
@@ -263,6 +265,32 @@ function generateAIForStage(stage: number): { base: Stats; final: Stats; rarity:
   return { base, final, rarity: aiRarity };
 }
 
+// Async matchmaking: pull a real critter from Supabase as the opponent.
+// Tier mirrors the old generateAIForStage rarity bands so stage progression
+// stays consistent (Rare → stages 1-2, Unique → 3-4, Legendary → 5+).
+// Returns null if no eligible critter is found, so callers can fall back
+// to the generated AI.
+async function fetchRealOpponent(stage: number, excludeId: string | null):
+  Promise<{ base: Stats; final: Stats; rarity: Rarity; name: string; id: string } | null> {
+  const tier: Rarity = stage <= 2 ? 'rare' : stage <= 4 ? 'unique' : 'legendary';
+  const tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
+  let query = supabase.from('critters')
+    .select('id,name,rarity,strength,health,stamina')
+    .eq('rarity', tierLabel);
+  if (excludeId) query = query.neq('id', excludeId);
+  const { data, error } = await query.limit(200);
+  if (error || !data || data.length === 0) return null;
+  const opp = data[Math.floor(Math.random() * data.length)] as
+    { id: string; name: string | null; rarity: string; strength: number; health: number; stamina: number };
+  const base: Stats = { strength: opp.strength, health: opp.health, stamina: opp.stamina };
+  // Same dice-based scaling as the generated AI, applied on top of the
+  // real critter's stats so later stages stay progressively harder.
+  const numDice = stage <= 2 ? 1 : stage <= 4 ? 2 : 3;
+  const dice = Array.from({ length: numDice }, rollD6);
+  const final = aiAllocateDice(base, dice);
+  return { base, final, rarity: tier, name: opp.name ?? 'Wild Critter', id: opp.id };
+}
+
 function aiAllocateDice(base: Stats, dice: number[]): Stats {
   const r = { ...base };
   [...dice].sort((a, b) => b - a).forEach(d => {
@@ -434,7 +462,7 @@ function SpotlightPanel({ spot }: { spot: Spotlight }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export function BattleGame({ onClose }: { onClose:()=>void }) {
+export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId?: string | null }) {
   const [phase,          setPhase]         = useState<Phase>('mode');
   const [critterMode,    setCritterMode]   = useState<'real'|'generated'>('generated');
   const [alignment,      setAlignment]     = useState<Alignment>('good');
@@ -485,6 +513,14 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   const [isBoss,          setIsBoss]          = useState(false);
   const [deathCount,      setDeathCount]      = useState(0);   // bonfire restarts this session
 
+  // QR scan state
+  const [scanId,       setScanId]       = useState('');
+  const [scanLoading,  setScanLoading]  = useState(false);
+  const [scanError,    setScanError]    = useState<string|null>(null);
+  // ID of the player's scanned critter — used to lock the name field and
+  // exclude self-matches during async opponent matchmaking.
+  const [scannedCritterId, setScannedCritterId] = useState<string|null>(null);
+
   // Turn-order spin wheel
   const [turnSpinning, setTurnSpinning] = useState(false);
   const [turnFirst,    setTurnFirst]    = useState<'player'|'ai'|null>(null);
@@ -499,6 +535,27 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   const roundsRef     = useRef<RoundSnap[]>([]);
   const battleMetaRef = useRef<BattleMeta | null>(null);
   useEffect(() => { if(logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [log]);
+
+  // Auto-load critter if opened via "Enter the Arena" from the scan page
+  useEffect(() => {
+    if (!scannedId) return;
+    setScanId(scannedId);
+    setScanLoading(true);
+    supabase.from('critters').select('id, name, rarity, strength, health, stamina')
+      .eq('id', scannedId).single()
+      .then(({ data, error }) => {
+        setScanLoading(false);
+        if (error || !data) { setPhase('scan'); setScanError('Critter not found. Enter your ID manually.'); return; }
+        const r = (data.rarity as string).toLowerCase() as Rarity;
+        setRarity(r);
+        setBase({ strength: data.strength, health: data.health, stamina: data.stamina });
+        setPlayerName(data.name ?? '');
+        setCritterMode('real');
+        setScannedCritterId(data.id);
+        setPhase('scan-setup');
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const rc = rarityColor[rarity];
   const rg = rarityGlow[rarity];
@@ -573,7 +630,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   const finalStat = (k: StatKey) => base[k] + assigns.reduce((s,a,i)=>a===k?s+allocDice[i]:s, 0);
 
   // ── Begin battle ────────────────────────────────────────────────────────────
-  const handleBeginBattle = () => {
+  const handleBeginBattle = async () => {
     if (!allAssigned) return;
     // Name bonus: adjective + critter bonuses (generated mode only)
     const nb = (k: StatKey) => critterMode === 'generated'
@@ -585,20 +642,27 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
       stamina:  finalStat('stamina')  + nb('stamina'),
     };
     const aiAlign: Alignment = alignment==='good'?'evil':'good';
-    const { base: aiBase, final: aiFinal, rarity: aiRarity } = generateAIForStage(1);
-    const aiName   = pick(AI_NAMES[aiAlign][aiRarity]);
+    const real = await fetchRealOpponent(1, scannedCritterId);
+    let aiBase: Stats, aiFinal: Stats, aiRarity: Rarity, aiName: string, opponentId: string | null;
+    if (real) {
+      aiBase = real.base; aiFinal = real.final; aiRarity = real.rarity; aiName = real.name; opponentId = real.id;
+    } else {
+      const gen = generateAIForStage(1);
+      aiBase = gen.base; aiFinal = gen.final; aiRarity = gen.rarity;
+      aiName = pick(AI_NAMES[aiAlign][aiRarity]); opponentId = null;
+    }
     const pMaxHp   = calcMaxHp(pFinal.health);
     const aMaxHp   = calcMaxHp(aiFinal.health);
     const aac      = ALIGN_CFG[aiAlign];
 
     const pF: Fighter = { name:playerName||'Your Critter', rarity, alignment, guild, base, final:pFinal, hp:pMaxHp, maxHp:pMaxHp };
-    const aF: Fighter = { name:aiName, rarity:aiRarity, alignment:aiAlign, base:aiBase, final:aiFinal, hp:aMaxHp, maxHp:aMaxHp };
+    const aF: Fighter = { name:aiName, rarity:aiRarity, alignment:aiAlign, base:aiBase, final:aiFinal, hp:aMaxHp, maxHp:aMaxHp, opponentId };
     setStage(1); setIsBoss(false);
     setMaxPlayerHeals(3); setBonusAttackRoll(0); setBonusPassive(0); setPerkChoices([]);
     setPlayer(pF); setAI(aF); setRound(1); setWinner(null);
     roundsRef.current = [];
     battleMetaRef.current = { p:pF, a:aF, stage:1, deathCount:0, isBoss:false,
-      maxHeals:3, bonusAtk:0, bonusPass:0 };
+      maxHeals:3, bonusAtk:0, bonusPass:0, opponentId };
     setPlayerHeals(0); setAiHeals(0);
     setPlayerShield(pFinal.stamina); setPlayerShieldMax(pFinal.stamina); setPlayerDefended(false);
     setAiShield(aiFinal.stamina);    setAiShieldMax(aiFinal.stamina);    setAiDefended(false);
@@ -926,6 +990,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
           ai_def: meta.a.final.stamina, ai_max_hp: meta.a.maxHp,
           winner: rWinner, total_rounds: roundsRef.current.length,
           final_p_hp: _p, final_ai_hp: _a,
+          opponent_id: meta.opponentId,
           rounds: [...roundsRef.current],
         };
         recordBattle(rec);
@@ -935,7 +1000,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     else { setBattleStep('choose'); setPlayerAction(null); setCombatRoll(null); setRevealedAIAct(null); setRevealedAIRoll(null); }
   };
 
-  const handleNextBattle = (overridePlayer?: Fighter) => {
+  const handleNextBattle = async (overridePlayer?: Fighter) => {
     const curPlayer = overridePlayer ?? player;
     if (!curPlayer) return;
     const newStage = stage + 1;
@@ -943,8 +1008,15 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     const bossStage = newStage % 3 === 0;
     setIsBoss(bossStage);
     const aiAlign: Alignment = alignment==='good'?'evil':'good';
-    const { base: aiBase, final: aiFinal, rarity: aiRarity } = generateAIForStage(newStage + deathCount);
-    const aiName  = pick(AI_NAMES[aiAlign][aiRarity]);
+    const real = await fetchRealOpponent(newStage + deathCount, scannedCritterId);
+    let aiBase: Stats, aiFinal: Stats, aiRarity: Rarity, aiName: string, opponentId: string | null;
+    if (real) {
+      aiBase = real.base; aiFinal = real.final; aiRarity = real.rarity; aiName = real.name; opponentId = real.id;
+    } else {
+      const gen = generateAIForStage(newStage + deathCount);
+      aiBase = gen.base; aiFinal = gen.final; aiRarity = gen.rarity;
+      aiName = pick(AI_NAMES[aiAlign][aiRarity]); opponentId = null;
+    }
     const aMaxHp  = calcMaxHp(aiFinal.health);
     // Boss: +5 to one random stat + a real critter photo
     const STAT_KEYS: StatKey[] = ['strength','health','stamina'];
@@ -957,13 +1029,13 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     // HP and heal count carry over — no restoration between stages
     setAI({name:aiName,rarity:aiRarity,alignment:aiAlign,base:aiBase,
            final:bossFinal,hp:bossFinalMaxHp,maxHp:bossFinalMaxHp,
-           bossBoostStat,img:bossImg});
+           bossBoostStat,img:bossImg,opponentId});
     setRound(1); setWinner(null); setAiHeals(0);
     roundsRef.current = [];
     battleMetaRef.current = { p:curPlayer, a:{name:aiName,rarity:aiRarity,alignment:aiAlign,base:aiBase,
-      final:bossFinal,hp:bossFinalMaxHp,maxHp:bossFinalMaxHp,bossBoostStat,img:bossImg},
+      final:bossFinal,hp:bossFinalMaxHp,maxHp:bossFinalMaxHp,bossBoostStat,img:bossImg,opponentId},
       stage:newStage, deathCount, isBoss:bossStage,
-      maxHeals:maxPlayerHeals, bonusAtk:bonusAttackRoll, bonusPass:bonusPassive };
+      maxHeals:maxPlayerHeals, bonusAtk:bonusAttackRoll, bonusPass:bonusPassive, opponentId };
     setPlayerShield(curPlayer.final.stamina); setPlayerShieldMax(curPlayer.final.stamina); setPlayerDefended(false);
     setAiShield(bossFinal.stamina);           setAiShieldMax(bossFinal.stamina);           setAiDefended(false);
     const bossTag = bossStage ? ' 👑 BOSS' : '';
@@ -977,15 +1049,22 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
   };
 
   // Bonfire restart: keep player stats, return to stage after last boss, enemies +1 level per death
-  const handleBonfireRestart = () => {
+  const handleBonfireRestart = async () => {
     if (!player) return;
     const newDeathCount = deathCount + 1;
     setDeathCount(newDeathCount);
 
     const aiAlign: Alignment = alignment === 'good' ? 'evil' : 'good';
-    // AI is generated for bonfireStage scaled up by newDeathCount deaths
-    const { base: aiBase, final: aiFinal, rarity: aiRarity } = generateAIForStage(bonfireStage + newDeathCount);
-    const aiName  = pick(AI_NAMES[aiAlign][aiRarity]);
+    // Opponent is matched for bonfireStage scaled up by newDeathCount deaths
+    const real = await fetchRealOpponent(bonfireStage + newDeathCount, scannedCritterId);
+    let aiBase: Stats, aiFinal: Stats, aiRarity: Rarity, aiName: string, opponentId: string | null;
+    if (real) {
+      aiBase = real.base; aiFinal = real.final; aiRarity = real.rarity; aiName = real.name; opponentId = real.id;
+    } else {
+      const gen = generateAIForStage(bonfireStage + newDeathCount);
+      aiBase = gen.base; aiFinal = gen.final; aiRarity = gen.rarity;
+      aiName = pick(AI_NAMES[aiAlign][aiRarity]); opponentId = null;
+    }
     const aMaxHp  = calcMaxHp(aiFinal.health);
 
     // Boss check (bonfires are always at stage ≡1 mod 3, so never a boss — kept for safety)
@@ -1000,7 +1079,7 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     const restoredPlayer: Fighter = { ...player, hp: player.maxHp };
     setPlayer(restoredPlayer);
     setAI({ name: aiName, rarity: aiRarity, alignment: aiAlign, base: aiBase,
-            final: bossFinal, hp: bossFinalMaxHp, maxHp: bossFinalMaxHp, bossBoostStat, img: bossImg });
+            final: bossFinal, hp: bossFinalMaxHp, maxHp: bossFinalMaxHp, bossBoostStat, img: bossImg, opponentId });
 
     setStage(bonfireStage);
     setIsBoss(bossStage);
@@ -1008,9 +1087,9 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     roundsRef.current = [];
     battleMetaRef.current = { p:restoredPlayer,
       a:{name:aiName,rarity:aiRarity,alignment:aiAlign,base:aiBase,
-         final:bossFinal,hp:bossFinalMaxHp,maxHp:bossFinalMaxHp,bossBoostStat,img:bossImg},
+         final:bossFinal,hp:bossFinalMaxHp,maxHp:bossFinalMaxHp,bossBoostStat,img:bossImg,opponentId},
       stage:bonfireStage, deathCount:newDeathCount, isBoss:bossStage,
-      maxHeals:maxPlayerHeals, bonusAtk:bonusAttackRoll, bonusPass:bonusPassive };
+      maxHeals:maxPlayerHeals, bonusAtk:bonusAttackRoll, bonusPass:bonusPassive, opponentId };
     // playerHeals intentionally NOT reset — remaining heals carry over from death
     setPlayerShield(restoredPlayer.final.stamina); setPlayerShieldMax(restoredPlayer.final.stamina); setPlayerDefended(false);
     setAiShield(bossFinal.stamina);               setAiShieldMax(bossFinal.stamina);               setAiDefended(false);
@@ -1027,6 +1106,32 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setRevealedAIAct(null); setRevealedAIRoll(null);
     setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
     setPhase('battle');
+  };
+
+  // ── QR scan: fetch critter from Supabase ───────────────────────────────────
+  const handleScanLoad = async (overrideId?: string) => {
+    const id = (overrideId ?? scanId).trim().toUpperCase();
+    if (!id) { setScanError('No critter ID found.'); return; }
+    setScanLoading(true); setScanError(null);
+    const { data, error } = await supabase
+      .from('critters')
+      .select('id, name, rarity, strength, health, stamina')
+      .eq('id', id)
+      .single();
+    setScanLoading(false);
+    if (error || !data) { setScanError('Critter not found. Check your ID and try again.'); return; }
+    const r = (data.rarity as string).toLowerCase() as Rarity;
+    setRarity(r);
+    setBase({ strength: data.strength, health: data.health, stamina: data.stamina });
+    setPlayerName(data.name ?? '');
+    setCritterMode('real');
+    setScannedCritterId(data.id);
+    setPhase('scan-setup');
+  };
+
+  const handleScanSetupContinue = () => {
+    setAllocDice([]); setAssigns([null, null, null]); setSelDie(null); setAllocSettled(false);
+    setPhase('rolling');
   };
 
   const handleReset = () => {
@@ -1046,6 +1151,8 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
     setSelectedAdj(null); setSelectedCritter(null);
     setAdjRollsLeft(3); setCritterRollsLeft(3);
     setTurnSpinning(false); setTurnFirst(null);
+    setScanId(''); setScanError(null); setScanLoading(false);
+    setScannedCritterId(null);
   };
 
   // ── Between-stage heal (on perk screen) ────────────────────────────────────
@@ -1156,24 +1263,98 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
           </div>
         )}
 
-        {/* ── STEP 0: Mode chooser ── */}
+        {/* ── STEP 0: Mode chooser — scan only ── */}
         {phase==='mode' && (
           <div className="bg-panel">
             <p className="bg-eyebrow">Arena</p>
             <h2 className="bg-title">Enter the Arena</h2>
-            <p className="bg-sub">Choose how to create your critter.</p>
+            <p className="bg-sub">Scan your critter card to battle.</p>
             <div className="bg-mode-row">
-              <button className="bg-mode-btn" onClick={()=>{ setCritterMode('real'); setPhase('real-setup'); }}>
-                <span className="bgm-icon">🃏</span>
-                <span className="bgm-title">Use Your Critter</span>
-                <span className="bgm-desc">Enter stats from your real card</span>
-              </button>
-              <button className="bg-mode-btn" onClick={()=>{ setCritterMode('generated'); setPhase('setup'); }}>
-                <span className="bgm-icon">🎲</span>
-                <span className="bgm-title">Generate a Critter</span>
-                <span className="bgm-desc">Roll and build from scratch</span>
+              <button className="bg-mode-btn bg-mode-btn--scan" onClick={()=>setPhase('scan')}>
+                <span className="bgm-icon">📷</span>
+                <span className="bgm-title">Scan Your Critter</span>
+                <span className="bgm-desc">Use the QR code on your physical card</span>
               </button>
             </div>
+          </div>
+        )}
+
+        {/* ── SCAN: Live camera QR scanner ── */}
+        {phase==='scan' && (
+          <div className="bg-panel">
+            <p className="bg-eyebrow">Arena</p>
+            <h2 className="bg-title">Scan Your Card</h2>
+
+            {scanLoading ? (
+              <p className="bg-sub" style={{textAlign:'center',padding:'2rem 0'}}>⏳ Loading critter…</p>
+            ) : (
+              <QrScanner
+                onScan={(id) => {
+                  setScanId(id);
+                  handleScanLoad(id);
+                }}
+                onError={(msg) => setScanError(msg)}
+              />
+            )}
+
+            {scanError && <p className="bg-scan-error">{scanError}</p>}
+
+            <button className="bg-back-btn" onClick={()=>{ setScanError(null); setPhase('mode'); }}>← Back</button>
+          </div>
+        )}
+
+        {/* ── SCAN SETUP: Alignment + Guild after loading ── */}
+        {phase==='scan-setup' && (
+          <div className="bg-panel">
+            <p className="bg-eyebrow">Your Critter · {rarity[0].toUpperCase()+rarity.slice(1)}</p>
+            <h2 className="bg-title" style={{color:rarityColor[rarity]}}>{playerName}</h2>
+
+            <div className="bg-stat-summary">
+              {([['⚔️','STR',base.strength],['❤️','HP',base.health],['🛡️','DEF',base.stamina]] as [string,string,number][]).map(([icon,lbl,val])=>(
+                <div key={lbl} className="bg-stat-summary-chip" style={{borderColor:rarityColor[rarity]}}>
+                  <span>{icon}</span>
+                  <span className="bg-ssc-lbl">{lbl}</span>
+                  <span className="bg-ssc-val" style={{color:rarityColor[rarity]}}>{val}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="bg-section-lbl" style={{marginTop:'1rem'}}>Choose Your Allegiance</div>
+            <div className="bg-align-row">
+              {(['good','evil'] as Alignment[]).map(a=>{
+                const cfg=ALIGN_CFG[a], active=alignment===a;
+                return (
+                  <button key={a} onClick={()=>setAlignment(a)}
+                    className={`bg-align-btn ${active?'bg-align-btn--on':''}`}
+                    style={active?{borderColor:cfg.color,boxShadow:`0 0 24px ${cfg.glow}`}:{}}>
+                    <span className="bab-icon">{cfg.icon}</span>
+                    <span className="bab-label" style={active?{color:cfg.color}:{}}>{cfg.label}</span>
+                    <span className="bab-desc">{a==='good'?'Honor & holy power':'Dark power & cunning'}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="bg-section-lbl" style={{marginTop:'0.5rem'}}>Guild</div>
+            <div className="bg-guild-row">
+              {(['rabbit','fox','squirrel','rogue'] as Guild[]).map(g=>{
+                const active=guild===g;
+                return (
+                  <button key={g} onClick={()=>setGuild(g)}
+                    className={`bg-guild-btn ${active?'bg-guild-btn--on':''}`}
+                    style={active?{borderColor:ac.color,boxShadow:`0 0 16px ${ac.glow}`}:{}}>
+                    <span className="bgui-icon">{GUILD_ICONS[g]}</span>
+                    <span className="bgui-name">{g[0].toUpperCase()+g.slice(1)}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button className="bg-cta" onClick={handleScanSetupContinue}
+              style={{borderColor:ac.color,color:ac.color}}>
+              🎲 Roll Dice →
+            </button>
+            <button className="bg-back-btn" onClick={()=>setPhase('scan')}>← Back</button>
           </div>
         )}
 
@@ -1356,22 +1537,28 @@ export function BattleGame({ onClose }: { onClose:()=>void }) {
             <p className="bg-eyebrow">{ac.icon} {ac.label} · {GUILD_ICONS[guild]} {guild[0].toUpperCase()+guild.slice(1)} · {rarity[0].toUpperCase()+rarity.slice(1)}</p>
             <h2 className="bg-title">Your Critter</h2>
 
-            {/* Name input */}
+            {/* Name — locked to the scanned critter's name; editable only for legacy generated mode */}
             <div className="bg-name-row">
-              <input
-                className="bg-name-input"
-                type="text"
-                placeholder="Critter name…"
-                value={playerName}
-                onChange={e=>setPlayerName(e.target.value)}
-                maxLength={24}
-              />
-              {critterMode === 'real' && (
-                <button className="bg-cta bg-cta--ghost"
-                  onClick={()=>setPlayerName(pick(GUILD_NAMES[guild]))}
-                  style={{whiteSpace:'nowrap'}}>
-                  🎲 Rename
-                </button>
+              {scannedCritterId ? (
+                <div className="bg-name-display">{playerName || 'Your Critter'}</div>
+              ) : (
+                <>
+                  <input
+                    className="bg-name-input"
+                    type="text"
+                    placeholder="Critter name…"
+                    value={playerName}
+                    onChange={e=>setPlayerName(e.target.value)}
+                    maxLength={24}
+                  />
+                  {critterMode === 'real' && (
+                    <button className="bg-cta bg-cta--ghost"
+                      onClick={()=>setPlayerName(pick(GUILD_NAMES[guild]))}
+                      style={{whiteSpace:'nowrap'}}>
+                      🎲 Rename
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
