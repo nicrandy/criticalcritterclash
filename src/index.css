@@ -1267,6 +1267,18 @@ body {
 .bg-win       { color:#fde68a; }
 .bg-lose      { color:#f87171; }
 .bg-streak    { font-family:var(--font-heading); font-size:0.85rem; color:var(--gold); letter-spacing:0.1em; margin:0; }
+.bg-xp-award  { display:flex; flex-direction:column; align-items:center; gap:0.2rem; margin:0.1rem 0; }
+.bg-xp-gain   { margin:0; font-size:0.85rem; color:var(--text-mid); }
+.bg-level-up  {
+  margin:0; font-family:var(--font-heading); font-size:0.95rem; letter-spacing:0.05em;
+  color:var(--gold); text-shadow:0 0 12px var(--gold-dim);
+  animation: bg-level-up-pop 0.5s ease-out;
+}
+@keyframes bg-level-up-pop {
+  0%   { transform:scale(0.7); opacity:0; }
+  60%  { transform:scale(1.1); opacity:1; }
+  100% { transform:scale(1); }
+}
 .bg-result-log {
   background:var(--bg-deep); border:1px solid var(--border); border-radius:10px;
   padding:0.75rem 1rem; width:100%; max-width:500px;
@@ -2177,6 +2189,18 @@ body {
 .cc-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .cc-claim-header { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; }
+.cc-level-row { display: flex; align-items: center; gap: 0.6rem; margin: 0.4rem 0; }
+.cc-level-badge {
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; white-space: nowrap;
+  padding: 0.25rem 0.6rem; border-radius: 999px; border: 1px solid;
+  background: rgba(255,255,255,0.05);
+}
+.cc-xp-track {
+  flex: 1; height: 6px; border-radius: 999px; background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+.cc-xp-fill { height: 100%; transition: width 0.4s ease; }
+.cc-xp-label { font-size: 0.75rem; color: rgba(255,255,255,0.5); white-space: nowrap; }
 .cc-claim-name { font-size: 1.6rem; font-weight: 800; color: #fff; text-align: center; word-break: break-word; }
 .cc-divider { border: none; border-top: 1px solid; opacity: 0.2; margin: 0.25rem 0; }
 .cc-stat-icon { font-size: 1rem; width: 1.4rem; text-align: center; }
@@ -2224,6 +2248,22 @@ body {
 .bg-back-btn:hover { color: rgba(255,255,255,0.8); }
 
 /* ── Stat summary chips (scan-setup) ────────────────────── */
+.bg-level-row {
+  display: flex; align-items: center; gap: 0.6rem;
+  width: 100%; max-width: 400px; margin: 0.25rem 0;
+}
+.bg-level-badge {
+  font-family: var(--font-heading); font-size: 0.75rem; letter-spacing: 0.06em;
+  white-space: nowrap; padding: 0.25rem 0.6rem; border-radius: 999px;
+  border: 1px solid; background: rgba(255,255,255,0.04);
+}
+.bg-xp-track {
+  flex: 1; height: 6px; border-radius: 999px; background: var(--bg-deep);
+  border: 1px solid var(--border); overflow: hidden;
+}
+.bg-xp-fill { height: 100%; transition: width 0.4s ease; }
+.bg-xp-label { font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; }
+
 .bg-stat-summary { display: flex; gap: 0.5rem; justify-content: center; margin: 0.5rem 0; }
 .bg-stat-summary-chip {
   display: flex; flex-direction: column; align-items: center; gap: 0.2rem;

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { rarityColor, rarityGlow } from './critters';
-import { supabase, submitStageScore, recordBattle, type BattleRecord, type RoundSnap } from './supabaseClient';
+import { supabase, submitStageScore, recordBattle, awardBattleXp, levelFromXp, xpForLevel, type BattleRecord, type RoundSnap } from './supabaseClient';
 import { QrScanner } from './QrScanner';
 
 // ─── Critter photos (used as boss portraits) ──────────────────────────────────
@@ -520,6 +520,11 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
   // ID of the player's scanned critter — used to lock the name field and
   // exclude self-matches during async opponent matchmaking.
   const [scannedCritterId, setScannedCritterId] = useState<string|null>(null);
+  // Persistent level/XP for the scanned critter (from Supabase)
+  const [playerLevel, setPlayerLevel] = useState(1);
+  const [playerXp,    setPlayerXp]    = useState(0);
+  // Set after a stage win once the award_battle_xp RPC resolves
+  const [xpAward,     setXpAward]     = useState<{ xp: number; leveledUp: boolean; level: number; stat: StatKey | null } | null>(null);
 
   // Turn-order spin wheel
   const [turnSpinning, setTurnSpinning] = useState(false);
@@ -541,7 +546,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     if (!scannedId) return;
     setScanId(scannedId);
     setScanLoading(true);
-    supabase.from('critters').select('id, name, rarity, strength, health, stamina')
+    supabase.from('critters').select('id, name, rarity, strength, health, stamina, level, xp')
       .eq('id', scannedId).single()
       .then(({ data, error }) => {
         setScanLoading(false);
@@ -552,6 +557,8 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
         setPlayerName(data.name ?? '');
         setCritterMode('real');
         setScannedCritterId(data.id);
+        setPlayerLevel(data.level ?? 1);
+        setPlayerXp(data.xp ?? 0);
         setPhase('scan-setup');
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -975,6 +982,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     setLog(p=>[...p,...entries]); setRound(p=>p+1);
     if (rWinner) {
       setWinner(rWinner); if(rWinner==='player')setStreak(p=>p+1); setPhase('result');
+      setXpAward(null);
       // Fire-and-forget battle analytics
       const meta = battleMetaRef.current;
       if (meta) {
@@ -995,6 +1003,23 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
         };
         recordBattle(rec);
         roundsRef.current = [];
+
+        // Award XP / level-up for the player's scanned critter on a stage win
+        if (rWinner === 'player' && scannedCritterId) {
+          const stageWon = meta.stage;
+          const bossWon  = meta.isBoss;
+          awardBattleXp(scannedCritterId, stageWon, bossWon).then(result => {
+            if (!result || result.new_xp == null || result.new_level == null) return;
+            setPlayerXp(result.new_xp);
+            setPlayerLevel(result.new_level);
+            setXpAward({
+              xp: stageWon * 2 * (bossWon ? 1.5 : 1),
+              leveledUp: !!result.leveled_up,
+              level: result.new_level,
+              stat: result.boosted_stat,
+            });
+          });
+        }
       }
     }
     else { setBattleStep('choose'); setPlayerAction(null); setCombatRoll(null); setRevealedAIAct(null); setRevealedAIRoll(null); }
@@ -1115,7 +1140,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     setScanLoading(true); setScanError(null);
     const { data, error } = await supabase
       .from('critters')
-      .select('id, name, rarity, strength, health, stamina')
+      .select('id, name, rarity, strength, health, stamina, level, xp')
       .eq('id', id)
       .single();
     setScanLoading(false);
@@ -1126,6 +1151,8 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     setPlayerName(data.name ?? '');
     setCritterMode('real');
     setScannedCritterId(data.id);
+    setPlayerLevel(data.level ?? 1);
+    setPlayerXp(data.xp ?? 0);
     setPhase('scan-setup');
   };
 
@@ -1153,6 +1180,26 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     setTurnSpinning(false); setTurnFirst(null);
     setScanId(''); setScanError(null); setScanLoading(false);
     setScannedCritterId(null);
+    setPlayerLevel(1); setPlayerXp(0);
+  };
+
+  // Rekindle anew: full restart back at the allegiance/guild screen, keeping
+  // the same scanned critter, alignment, and guild — but losing all run gains
+  // (stage progress, dice allocations, perks, heals, etc).
+  const handleRekindleAnew = () => {
+    setAllocDice([]); setAssigns([null,null,null]); setSelDie(null); setAllocSettled(false);
+    setPlayer(null); setAI(null); setLog([]); setRound(1);
+    setWinner(null); setStreak(0);
+    setPlayerHeals(0); setAiHeals(0);
+    setPlayerShield(0); setPlayerShieldMax(0); setPlayerDefended(false);
+    setAiShield(0);    setAiShieldMax(0);    setAiDefended(false);
+    setStage(1); setIsBoss(false); setDeathCount(0);
+    setMaxPlayerHeals(3); setBonusAttackRoll(0); setBonusPassive(0); setPerkChoices([]);
+    setBattleStep('choose');
+    setPlayerAction(null); setCombatRoll(null); setCombatSettled(false); setRevealedAIAct(null); setRevealedAIRoll(null);
+    setAnimStep('idle'); showSpot(IDLE_SPOTLIGHT); setFloatDmg(null);
+    setTurnSpinning(false); setTurnFirst(null);
+    setPhase('scan-setup');
   };
 
   // ── Between-stage heal (on perk screen) ────────────────────────────────────
@@ -1308,6 +1355,24 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
           <div className="bg-panel">
             <p className="bg-eyebrow">Your Critter · {rarity[0].toUpperCase()+rarity.slice(1)}</p>
             <h2 className="bg-title" style={{color:rarityColor[rarity]}}>{playerName}</h2>
+
+            {(() => {
+              const curFloor = xpForLevel(playerLevel);
+              const nextFloor = xpForLevel(playerLevel + 1);
+              const span = Math.max(1, nextFloor - curFloor);
+              const pct = Math.min(100, Math.max(0, ((playerXp - curFloor) / span) * 100));
+              return (
+                <div className="bg-level-row">
+                  <span className="bg-level-badge" style={{borderColor:rarityColor[rarity],color:rarityColor[rarity]}}>
+                    🏅 Level {playerLevel}
+                  </span>
+                  <div className="bg-xp-track">
+                    <div className="bg-xp-fill" style={{width:`${pct}%`,background:rarityColor[rarity]}} />
+                  </div>
+                  <span className="bg-xp-label">{playerXp} XP</span>
+                </div>
+              );
+            })()}
 
             <div className="bg-stat-summary">
               {([['⚔️','STR',base.strength],['❤️','HP',base.health],['🛡️','DEF',base.stamina]] as [string,string,number][]).map(([icon,lbl,val])=>(
@@ -1768,6 +1833,19 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
               {winner==='player'?'Victory!':'Defeated'}
             </h2>
             {winner==='player'&&streak>0&&<p className="bg-streak">🔥 {streak} win{streak>1?'s':''} in a row</p>}
+            {winner==='player' && xpAward && (
+              <div className="bg-xp-award">
+                <p className="bg-xp-gain">✨ +{Math.round(xpAward.xp)} XP</p>
+                {xpAward.leveledUp && (
+                  <p className="bg-level-up">
+                    🏅 Level Up! Now Level {xpAward.level}
+                    {xpAward.stat && (
+                      <> — +1 {({strength:'⚔️',health:'❤️',stamina:'🛡️'} as Record<StatKey,string>)[xpAward.stat]} {xpAward.stat[0].toUpperCase()+xpAward.stat.slice(1)}</>
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
             {winner==='player'
               ? <p className="bg-sub">{ac.icon} {playerName} stands triumphant!</p>
               : player && <>
@@ -1802,9 +1880,9 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                     🔥 Return to Bonfire — Stage {bonfireStage}
                   </button>
                   <button className="bg-cta bg-cta--ghost" onClick={()=>{
-                    if(window.confirm('Are you sure? This will restart your character at stage 1.')) handleReset();
+                    if(window.confirm('Are you sure? All run progress and stat gains will be lost.')) handleRekindleAnew();
                   }}>
-                    Start with new character
+                    Rekindle anew
                   </button>
                 </div>
               )}

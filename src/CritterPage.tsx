@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase } from './supabaseClient';
+import { supabase, levelFromXp, xpForLevel } from './supabaseClient';
 import logo from '../images/product_images/logo.png';
 
 interface CritterRecord {
@@ -10,6 +10,8 @@ interface CritterRecord {
   health: number;
   stamina: number;
   name: string | null;
+  level: number | null;
+  xp: number | null;
 }
 
 const RARITY_COLOR: Record<string, string> = {
@@ -34,7 +36,7 @@ export function CritterPage() {
     if (!id) return;
     supabase
       .from('critters')
-      .select('id, rarity, strength, health, stamina, name')
+      .select('id, rarity, strength, health, stamina, name, level, xp')
       .eq('id', id.toUpperCase())
       .single()
       .then(({ data, error }) => {
@@ -50,6 +52,11 @@ export function CritterPage() {
 
   const color = RARITY_COLOR[critter.rarity] ?? '#c9a84c';
   const total = critter.strength + critter.health + critter.stamina;
+  const xp = critter.xp ?? 0;
+  const level = critter.level ?? levelFromXp(xp);
+  const curFloor = xpForLevel(level);
+  const nextFloor = xpForLevel(level + 1);
+  const xpPct = Math.min(100, Math.max(0, ((xp - curFloor) / Math.max(1, nextFloor - curFloor)) * 100));
 
   return (
     <PageShell>
@@ -59,6 +66,14 @@ export function CritterPage() {
           <p className="cc-claim-rarity" style={{ color }}>{RARITY_LABEL[critter.rarity] ?? critter.rarity}</p>
           {critter.name && <h1 className="cc-claim-name">{critter.name}</h1>}
           <p className="cc-claim-id">#{critter.id}</p>
+        </div>
+
+        <div className="cc-level-row">
+          <span className="cc-level-badge" style={{ borderColor: color, color }}>🏅 Level {level}</span>
+          <div className="cc-xp-track">
+            <div className="cc-xp-fill" style={{ width: `${xpPct}%`, background: color }} />
+          </div>
+          <span className="cc-xp-label">{xp} XP</span>
         </div>
 
         <div className="cc-divider" style={{ borderColor: color }} />

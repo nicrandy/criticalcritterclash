@@ -104,6 +104,44 @@ export async function recordBattle(rec: BattleRecord): Promise<void> {
   }
 }
 
+// ─── Critter leveling ──────────────────────────────────────────────────────
+// Mirrors the curve used by the `award_battle_xp` Supabase RPC:
+//   level = floor(sqrt(xp / 5)) + 1
+// so level 2 needs 5 xp, level 3 needs 20 xp, level 4 needs 45 xp, etc.
+export function levelFromXp(xp: number): number {
+  return Math.floor(Math.sqrt(Math.max(0, xp) / 5)) + 1;
+}
+
+/** XP required to *reach* the given level (inverse of levelFromXp) */
+export function xpForLevel(level: number): number {
+  return Math.pow(Math.max(1, level) - 1, 2) * 5;
+}
+
+export interface AwardXpResult {
+  new_xp: number | null;
+  new_level: number | null;
+  leveled_up: boolean | null;
+  boosted_stat: 'strength' | 'health' | 'stamina' | null;
+  strength: number | null;
+  health: number | null;
+  stamina: number | null;
+}
+
+/** Fire-and-forget: award XP for a stage win and apply any level-up stat bonus */
+export async function awardBattleXp(critterId: string, stage: number, isBoss: boolean): Promise<AwardXpResult | null> {
+  try {
+    const { data, error } = await supabase.rpc('award_battle_xp', {
+      p_critter_id: critterId,
+      p_stage: stage,
+      p_is_boss: isBoss,
+    });
+    if (error || !data?.[0]) return null;
+    return data[0] as AwardXpResult;
+  } catch {
+    return null;
+  }
+}
+
 /** Format start/end dates into a readable range, e.g. "May 23 – 25" or "September 7" */
 export function formatEventDate(start: string, end: string | null): string {
   const startDt = new Date(start + 'T12:00:00');
