@@ -4,9 +4,9 @@ import { supabase, bonusValue, type StatBonuses } from './supabaseClient';
 import { QrScanner } from './QrScanner';
 import logo from '../images/product_images/logo.png';
 
-// Admin access is enforced server-side by RLS policies keyed to this email
-// (scripts/setup_admin.sql) — this constant is only used for the UI.
-const ADMIN_EMAIL = 'nicholasresch@gmail.com';
+// Admin access is enforced server-side: RLS policies gate every write, and
+// the is_admin() RPC tells the UI whether the signed-in account qualifies.
+// The admin email lives only inside Supabase — never in this codebase.
 
 interface AdminCritter {
   id: string;
@@ -42,6 +42,8 @@ export function AdminPage() {
   // ── Auth ────────────────────────────────────────────────────────────────────
   const [session,   setSession]   = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  // null = access check in flight for the current session
+  const [isAdmin,   setIsAdmin]   = useState<boolean | null>(null);
   const [email,     setEmail]     = useState('');
   const [password,  setPassword]  = useState('');
   const [authBusy,  setAuthBusy]  = useState(false);
@@ -66,6 +68,16 @@ export function AdminPage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  // Ask the server whether this session is the admin account
+  useEffect(() => {
+    if (!session) { setIsAdmin(null); return; }
+    let cancelled = false;
+    supabase.rpc('is_admin').then(({ data, error }) => {
+      if (!cancelled) setIsAdmin(!error && data === true);
+    });
+    return () => { cancelled = true; };
+  }, [session]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,8 +172,6 @@ export function AdminPage() {
     }
   };
 
-  const isAdmin = session?.user?.email?.toLowerCase() === ADMIN_EMAIL;
-
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="adm-root">
@@ -188,6 +198,10 @@ export function AdminPage() {
               {authBusy ? '⏳ Signing in…' : 'Sign In'}
             </button>
           </form>
+
+        ) : isAdmin === null ? (
+          /* ── Access check in flight ── */
+          <p className="adm-dim">Checking access…</p>
 
         ) : !isAdmin ? (
           /* ── Wrong account ── */
