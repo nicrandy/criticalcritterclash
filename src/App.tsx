@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react';
-import { critters, rarityColor, rarityGlow, type Critter } from './critters';
-import { ruleSets } from './ruleSets';
 import { supabase, formatEventDate, fetchScores, type Event, type ScoreData } from './supabaseClient';
 import { BattleGame } from './BattleGame';
 import logo     from '../images/product_images/logo.png';
@@ -12,84 +10,7 @@ const critterPhotoModules = import.meta.glob(
   { eager: true, import: 'default' }
 ) as Record<string, string>;
 
-const statImageModules = import.meta.glob(
-  '../images/product_images/stats/*.{png,jpg,jpeg,gif,webp}',
-  { eager: true, import: 'default' }
-) as Record<string, string>;
-
 const critterPhotos = Object.values(critterPhotoModules).filter(Boolean) as string[];
-const statImages    = Object.values(statImageModules).filter(Boolean) as string[];
-
-// AI card art still used for the stat-detail lightbox
-const cardArtModules = import.meta.glob(
-  '../images/product_images/*.{png,jpg,jpeg,gif,webp}',
-  { eager: true, import: 'default' }
-) as Record<string, string>;
-const cardArtMap: Record<string, string> = {};
-for (const [path, url] of Object.entries(cardArtModules)) {
-  cardArtMap[path.split('/').pop() ?? ''] = url;
-}
-
-// ── Stat bar ──────────────────────────────────────────────────────────────────
-function StatBar({ label, value, icon, rarity }: {
-  label: string; value: number; icon: string; rarity: string;
-}) {
-  const color = rarityColor[rarity as keyof typeof rarityColor] ?? '#c9a84c';
-  const glow  = rarityGlow[rarity  as keyof typeof rarityGlow]  ?? 'rgba(201,168,76,0.5)';
-  return (
-    <div className="stat-bar-row" style={{ '--rarity-color': color, '--rarity-glow': glow } as React.CSSProperties}>
-      <span className="stat-bar-icon">{icon}</span>
-      <span className="stat-bar-label">{label}</span>
-      <div className="stat-bar-track">
-        {Array.from({ length: 9 }, (_, i) => (
-          <div key={i} className={`stat-pip ${i < value ? 'stat-pip--filled' : ''}`} />
-        ))}
-      </div>
-      <span className="stat-bar-value">{value}</span>
-    </div>
-  );
-}
-
-// ── Critter stat lightbox (uses AI card art + critters.ts data) ───────────────
-function StatLightbox({ critter, onClose }: { critter: Critter; onClose: () => void }) {
-  const color = rarityColor[critter.rarity];
-  const glow  = rarityGlow[critter.rarity];
-  const src   = cardArtMap[critter.image];
-  return (
-    <div className="lightbox" onClick={onClose}>
-      <div
-        className="lightbox-panel"
-        style={{ '--rarity-color': color, '--rarity-glow': glow } as React.CSSProperties}
-        onClick={e => e.stopPropagation()}
-      >
-        <button className="lightbox-close" onClick={onClose}>✕</button>
-        <div className="lightbox-portrait">
-          {src
-            ? <img src={src} alt={critter.name} className="lightbox-img" />
-            : <div className="critter-tile-placeholder" style={{ minHeight: 320 }}><span>🐾</span></div>
-          }
-        </div>
-        <div className="lightbox-info">
-          <p className="lightbox-rarity" style={{ color }}>{critter.rarity.toUpperCase()}</p>
-          <h2 className="lightbox-name">{critter.name}</h2>
-          <p className="lightbox-desc">{critter.description}</p>
-          <div className="lightbox-stats">
-            <StatBar label="Strength" value={critter.strength} icon="👊" rarity={critter.rarity} />
-            <StatBar label="Health"   value={critter.health}   icon="❤️" rarity={critter.rarity} />
-            <StatBar label="Stamina"  value={critter.stamina}  icon="🛡️" rarity={critter.rarity} />
-          </div>
-          <div className="lightbox-total">
-            <span>Total Power</span>
-            <span className="lightbox-power" style={{ color }}>
-              {critter.strength + critter.health + critter.stamina}
-              <small> / 27</small>
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Photo lightbox (full-screen photo) ───────────────────────────────────────
 function PhotoLightbox({ src, onClose }: { src: string; onClose: () => void }) {
@@ -105,13 +26,17 @@ const GUILD_ICONS: Record<string, string> = {
   rabbit: '🐇', fox: '🦊', squirrel: '🐿️', rogue: '🥷',
 };
 
-type NavSection = 'home' | 'events' | 'critters' | 'rules';
+type NavSection = 'home' | 'events' | 'critters';
+
+/** True if the event hasn't finished yet (multi-day events stay up until their end date) */
+function isUpcoming(event: Event): boolean {
+  const today = new Date().toISOString().slice(0, 10);   // 'YYYY-MM-DD'
+  return (event.end_date ?? event.start_date) >= today;
+}
 
 function App() {
   const [activeNav,    setActiveNav]   = useState<NavSection>('home');
-  const [activeRule,   setActiveRule]  = useState(ruleSets[0].id);
   const [photoOpen,    setPhotoOpen]   = useState<string | null>(null);
-  const [statCritter,  setStatCritter] = useState<Critter | null>(null);
   const [events,       setEvents]      = useState<Event[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [gameOpen,     setGameOpen]    = useState(false);
@@ -136,17 +61,25 @@ function App() {
       .select('*')
       .order('start_date', { ascending: true })
       .then(({ data, error }) => {
-        if (!error && data) setEvents(data as Event[]);
+        if (!error && data) setEvents((data as Event[]).filter(isUpcoming));
         setEventsLoading(false);
       });
   }, []);
 
-  // Fetch global scores on mount, then refresh every 30 s
+  // Fetch global scores on mount, then refresh every 30 s while the tab is
+  // visible. Backgrounded tabs skip the poll and catch up on return.
   useEffect(() => {
-    const load = () => fetchScores().then(setScores).catch(console.warn);
+    const load = () => {
+      if (document.hidden) return;
+      fetchScores().then(setScores).catch(console.warn);
+    };
     load();
     const id = setInterval(load, 30_000);
-    return () => clearInterval(id);
+    document.addEventListener('visibilitychange', load);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', load);
+    };
   }, []);
 
   const scrollTo = (id: string, section: NavSection) => {
@@ -292,91 +225,15 @@ function App() {
         <div className="photo-grid">
           {critterPhotos.map((src, i) => (
             <button key={i} className="photo-tile" onClick={() => setPhotoOpen(src)} aria-label="View critter">
-              <img src={src} alt={`Critter ${i + 1}`} className="photo-tile-img" />
+              <img src={src} alt={`Critter ${i + 1}`} className="photo-tile-img" loading="lazy" decoding="async" />
             </button>
           ))}
         </div>
 
       </section>
 
-      {/* ── RULES — hidden from nav/page, code kept for later use ── */}
-      {false && <section id="rules" className="section rules-section">
-        <div className="section-header">
-          <p className="section-eyebrow">How to Play</p>
-          <h2 className="section-title">Rules of Combat</h2>
-          <p className="section-sub">Choose your game mode below.</p>
-        </div>
-
-        {/* Mode buttons */}
-        <div className="mode-btn-row">
-          {ruleSets.map(rs => (
-            <button
-              key={rs.id}
-              className={`mode-btn ${activeRule === rs.id ? 'mode-btn--active' : ''}`}
-              onClick={() => setActiveRule(rs.id)}
-            >
-              {rs.buttonLabel}
-            </button>
-          ))}
-        </div>
-
-        {/* Active rule set */}
-        {ruleSets.filter(rs => rs.id === activeRule).map(rs => (
-          <div key={rs.id} className="ruleset-panel">
-            <div className="ruleset-header">
-              <h3 className="ruleset-title">{rs.title}</h3>
-              <p className="ruleset-tagline">{rs.tagline}</p>
-              <div className="ruleset-meta">
-                <span className="meta-chip">👥 {rs.players} Player{rs.players === '1' ? '' : 's'}</span>
-                <span className="meta-chip">🐾 {rs.critters}</span>
-                <span className="meta-chip">🎲 {rs.dice}</span>
-              </div>
-            </div>
-            <div className="rules-grid">
-              {rs.rules.map(r => (
-                <div key={r.title} className="rule-card">
-                  <div className="rule-icon">{r.icon}</div>
-                  <h3 className="rule-title">{r.title}</h3>
-                  <p className="rule-text">{r.text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {/* Stat reference */}
-        <div className="stat-explainer">
-          <h3 className="stat-explainer-title">Stat Reference</h3>
-          <div className="stat-row">
-            {[
-              { icon: '👊', name: 'Strength', desc: 'Added to your attack roll. Higher = harder hits.' },
-              { icon: '❤️', name: 'Health',   desc: 'Life total × 2 = HP. Reach 0 and your Critter is defeated.' },
-              { icon: '🛡️', name: 'Stamina',  desc: 'Passive damage reduction each round, and your shield value when you choose to Defend.' },
-            ].map(s => (
-              <div key={s.name} className="stat-block">
-                <span className="stat-icon">{s.icon}</span>
-                <span className="stat-name">{s.name}</span>
-                <span className="stat-desc">{s.desc}</span>
-                <span className="stat-scale">0 – 9</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Stat example images */}
-          {statImages.length > 0 && (
-            <div className="stat-examples">
-              <p className="stat-examples-label">Examples</p>
-              <div className="stat-examples-row">
-                {statImages.map((src, i) => (
-                  <button key={i} className="stat-example-tile" onClick={() => setPhotoOpen(src)} aria-label="Stat example">
-                    <img src={src} alt={`Stat example ${i + 1}`} className="stat-example-img" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </section>}
+      {/* ── RULES — hidden until the printed rules ship; see RulesSection.tsx ──
+          <RulesSection onPhotoOpen={setPhotoOpen} /> */}
 
       {/* ── FOOTER ── */}
       <footer className="site-footer">
@@ -396,9 +253,8 @@ function App() {
       </footer>
 
       {/* ── LIGHTBOXES ── */}
-      {photoOpen   && <PhotoLightbox src={photoOpen} onClose={() => setPhotoOpen(null)} />}
-      {statCritter && <StatLightbox critter={statCritter} onClose={() => setStatCritter(null)} />}
-      {gameOpen    && <BattleGame onClose={() => { setGameOpen(false); setArenaScannedId(null); }} scannedId={arenaScannedId} />}
+      {photoOpen && <PhotoLightbox src={photoOpen} onClose={() => setPhotoOpen(null)} />}
+      {gameOpen  && <BattleGame onClose={() => { setGameOpen(false); setArenaScannedId(null); }} scannedId={arenaScannedId} />}
     </div>
   );
 }

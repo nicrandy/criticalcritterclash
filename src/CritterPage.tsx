@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase, levelFromXp, xpForLevel } from './supabaseClient';
+import { supabase, levelFromXp, xpForLevel, claimIdleBattles, type IdleClaimResult } from './supabaseClient';
 import logo from '../images/product_images/logo.png';
 
 interface CritterRecord {
@@ -12,6 +12,7 @@ interface CritterRecord {
   name: string | null;
   level: number | null;
   xp: number | null;
+  photo_url: string | null;
 }
 
 const RARITY_COLOR: Record<string, string> = {
@@ -31,19 +32,31 @@ export function CritterPage() {
   const [critter,  setCritter]  = useState<CritterRecord | null>(null);
   const [loading,  setLoading]  = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [idleReport, setIdleReport] = useState<IdleClaimResult | null>(null);
 
   useEffect(() => {
     if (!id) return;
-    supabase
-      .from('critters')
-      .select('id, rarity, strength, health, stamina, name, level, xp')
-      .eq('id', id.toUpperCase())
-      .single()
-      .then(({ data, error }) => {
-        if (error || !data) setNotFound(true);
-        else setCritter(data as CritterRecord);
-        setLoading(false);
-      });
+    let cancelled = false;
+    (async () => {
+      const upperId = id.toUpperCase();
+      // Resolve any banked training battles first, so the page below shows
+      // the post-training stats/XP
+      const idle = await claimIdleBattles(upperId);
+      const { data, error } = await supabase
+        .from('critters')
+        .select('id, rarity, strength, health, stamina, name, level, xp, photo_url')
+        .eq('id', upperId)
+        .single();
+      if (cancelled) return;
+      if (error || !data) {
+        setNotFound(true);
+      } else {
+        setCritter(data as CritterRecord);
+        if (idle && idle.battles_fought > 0) setIdleReport(idle);
+      }
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
   }, [id]);
 
   if (loading)  return <PageShell><p className="cc-claim-loading">Summoning your critter…</p></PageShell>;
@@ -62,11 +75,34 @@ export function CritterPage() {
     <PageShell>
       <div className="cc-claim-card" style={{ '--rarity-color': color } as React.CSSProperties}>
 
+        {critter.photo_url && (
+          <img src={critter.photo_url} alt={critter.name ?? 'Critter'} className="cc-claim-photo"
+            style={{ borderColor: color }} />
+        )}
+
         <div className="cc-claim-header">
           <p className="cc-claim-rarity" style={{ color }}>{RARITY_LABEL[critter.rarity] ?? critter.rarity}</p>
           {critter.name && <h1 className="cc-claim-name">{critter.name}</h1>}
           <p className="cc-claim-id">#{critter.id}</p>
         </div>
+
+        {idleReport && (
+          <div className="cc-idle-banner" style={{ borderColor: color }}>
+            <p className="cc-idle-title">🌙 While you were away…</p>
+            <p className="cc-idle-summary">
+              {critter.name ?? 'Your critter'} trained in {idleReport.battles_fought} battle{idleReport.battles_fought > 1 ? 's' : ''} —
+              {' '}{idleReport.wins} win{idleReport.wins === 1 ? '' : 's'} · <strong style={{ color }}>+{idleReport.xp_gained} XP</strong>
+            </p>
+            {idleReport.leveled_up && (
+              <p className="cc-idle-levelup">🏅 Leveled up to Level {idleReport.new_level}!</p>
+            )}
+            <ul className="cc-idle-log">
+              {idleReport.log.map((b, i) => (
+                <li key={i}>{b.won ? '🏆 Defeated' : '💢 Lost to'} {b.opponent}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="cc-level-row">
           <span className="cc-level-badge" style={{ borderColor: color, color }}>🏅 Level {level}</span>

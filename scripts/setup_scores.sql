@@ -26,6 +26,8 @@ VALUES ('rabbit', 0), ('fox', 0), ('squirrel', 0), ('rogue', 0)
 ON CONFLICT (guild) DO NOTHING;
 
 -- ── 3. Atomic increment functions (SECURITY DEFINER bypasses RLS safely) ──────
+-- p_points is clamped server-side: the client only ever sends 1–3 per stage
+-- win, so anything outside that range is a forged request, not a bug.
 
 CREATE OR REPLACE FUNCTION add_alignment_points(p_alignment TEXT, p_points INT)
 RETURNS void
@@ -33,8 +35,11 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+  IF p_alignment NOT IN ('good', 'evil') THEN
+    RETURN;
+  END IF;
   UPDATE alignment_scores
-  SET total_points = total_points + p_points
+  SET total_points = total_points + LEAST(GREATEST(p_points, 1), 3)
   WHERE alignment = p_alignment;
 END;
 $$;
@@ -45,8 +50,11 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+  IF p_guild NOT IN ('rabbit', 'fox', 'squirrel', 'rogue') THEN
+    RETURN;
+  END IF;
   UPDATE guild_scores
-  SET total_points = total_points + p_points
+  SET total_points = total_points + LEAST(GREATEST(p_points, 1), 3)
   WHERE guild = p_guild;
 END;
 $$;

@@ -38,7 +38,7 @@ export function QrScanner({ onScan, onError }: QrScannerProps) {
     });
 
     return () => {
-      scanner.isScanning && scanner.stop().catch(() => {});
+      if (scanner.isScanning) scanner.stop().catch(() => {});
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

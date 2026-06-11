@@ -1,0 +1,279 @@
+import { useEffect, useRef, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from './supabaseClient';
+import { QrScanner } from './QrScanner';
+import logo from '../images/product_images/logo.png';
+
+// Admin access is enforced server-side by RLS policies keyed to this email
+// (scripts/setup_admin.sql) — this constant is only used for the UI.
+const ADMIN_EMAIL = 'nicholasresch@gmail.com';
+
+interface AdminCritter {
+  id: string;
+  name: string | null;
+  rarity: string;
+  strength: number;
+  health: number;
+  stamina: number;
+  level: number | null;
+  xp: number | null;
+  photo_url: string | null;
+}
+
+type StatKey = 'strength' | 'health' | 'stamina';
+
+/** Downscale + JPEG-compress a camera photo before upload (~1200px, q0.85) */
+async function compressImage(file: File, maxDim = 1200, quality = 0.85): Promise<Blob> {
+  const img = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(b => b ? resolve(b) : reject(new Error('compress failed')), 'image/jpeg', quality)
+  );
+}
+
+export function AdminPage() {
+  // ── Auth ────────────────────────────────────────────────────────────────────
+  const [session,   setSession]   = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [email,     setEmail]     = useState(ADMIN_EMAIL);
+  const [password,  setPassword]  = useState('');
+  const [authBusy,  setAuthBusy]  = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // ── Critter editing ─────────────────────────────────────────────────────────
+  const [scanOpen,  setScanOpen]  = useState(false);
+  const [manualId,  setManualId]  = useState('');
+  const [critter,   setCritter]   = useState<AdminCritter | null>(null);
+  const [loadBusy,  setLoadBusy]  = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveBusy,  setSaveBusy]  = useState(false);
+  const [saveMsg,   setSaveMsg]   = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthBusy(true); setAuthError(null);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(), password,
+    });
+    setAuthBusy(false);
+    if (error) setAuthError(error.message);
+    setPassword('');
+  };
+
+  const handleSignOut = () => {
+    supabase.auth.signOut();
+    setCritter(null); setSaveMsg(null); setLoadError(null);
+  };
+
+  // ── Load a critter (from scan or manual entry) ──────────────────────────────
+  const loadCritter = async (rawId: string) => {
+    const id = rawId.trim().toUpperCase();
+    if (!id) return;
+    setScanOpen(false); setLoadBusy(true); setLoadError(null); setSaveMsg(null);
+    const { data, error } = await supabase
+      .from('critters')
+      .select('id, name, rarity, strength, health, stamina, level, xp, photo_url')
+      .eq('id', id)
+      .single();
+    setLoadBusy(false);
+    if (error || !data) { setLoadError(`No critter found for ID ${id}.`); return; }
+    setCritter(data as AdminCritter);
+  };
+
+  const setStat = (k: StatKey, delta: number) =>
+    setCritter(c => c ? { ...c, [k]: Math.max(0, Math.min(9, c[k] + delta)) } : c);
+
+  // ── Save name + stats ───────────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!critter || saveBusy) return;
+    setSaveBusy(true); setSaveMsg(null);
+    const { data, error } = await supabase
+      .from('critters')
+      .update({
+        name: critter.name?.trim() || null,
+        strength: critter.strength,
+        health: critter.health,
+        stamina: critter.stamina,
+      })
+      .eq('id', critter.id)
+      .select();
+    setSaveBusy(false);
+    if (error) { setSaveMsg(`❌ Save failed: ${error.message}`); return; }
+    // RLS silently updates 0 rows when the login isn't the admin account
+    if (!data || data.length === 0) { setSaveMsg('❌ Not authorized — this login cannot edit critters.'); return; }
+    setSaveMsg('✅ Saved.');
+  };
+
+  // ── Photo: capture → compress → upload to storage → save URL ───────────────
+  const handlePhotoPicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';   // allow re-taking the same photo
+    if (!file || !critter || photoBusy) return;
+    setPhotoBusy(true); setSaveMsg(null);
+    try {
+      const blob = await compressImage(file);
+      const path = `${critter.id}.jpg`;
+      const { error: upErr } = await supabase.storage
+        .from('critter-photos')
+        .upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from('critter-photos').getPublicUrl(path);
+      const url = `${pub.publicUrl}?v=${Date.now()}`;   // cache-bust replaced photos
+      const { data, error } = await supabase
+        .from('critters').update({ photo_url: url }).eq('id', critter.id).select();
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('not authorized');
+      setCritter(c => c ? { ...c, photo_url: url } : c);
+      setSaveMsg('✅ Photo saved.');
+    } catch (err) {
+      setSaveMsg(`❌ Photo upload failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const isAdmin = session?.user?.email?.toLowerCase() === ADMIN_EMAIL;
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+  return (
+    <div className="adm-root">
+      <div className="adm-inner">
+        <a href="/" aria-label="Go to Critical Critter Clash home">
+          <img src={logo} alt="Critical Critter Clash" className="adm-logo" />
+        </a>
+        <h1 className="adm-title">⚙️ Admin</h1>
+
+        {!authReady ? (
+          <p className="adm-dim">Checking session…</p>
+
+        ) : !session ? (
+          /* ── Login ── */
+          <form className="adm-card" onSubmit={handleLogin}>
+            <label className="adm-label" htmlFor="adm-email">Email</label>
+            <input id="adm-email" className="adm-input" type="email" autoComplete="username"
+              value={email} onChange={e => setEmail(e.target.value)} />
+            <label className="adm-label" htmlFor="adm-pass">Password</label>
+            <input id="adm-pass" className="adm-input" type="password" autoComplete="current-password"
+              value={password} onChange={e => setPassword(e.target.value)} />
+            {authError && <p className="adm-error">{authError}</p>}
+            <button className="adm-btn adm-btn--primary" type="submit" disabled={authBusy || !password}>
+              {authBusy ? '⏳ Signing in…' : 'Sign In'}
+            </button>
+          </form>
+
+        ) : !isAdmin ? (
+          /* ── Wrong account ── */
+          <div className="adm-card">
+            <p className="adm-error">Signed in as {session.user.email}, which is not an admin account.</p>
+            <button className="adm-btn" onClick={handleSignOut}>Sign Out</button>
+          </div>
+
+        ) : (
+          /* ── Admin tools ── */
+          <>
+            <div className="adm-session-row">
+              <span className="adm-dim">{session.user.email}</span>
+              <button className="adm-btn adm-btn--small" onClick={handleSignOut}>Sign Out</button>
+            </div>
+
+            {/* Critter lookup */}
+            <div className="adm-card">
+              <h2 className="adm-card-title">Load a Critter</h2>
+              {scanOpen ? (
+                <>
+                  <QrScanner onScan={loadCritter} onError={msg => setLoadError(msg)} />
+                  <button className="adm-btn" onClick={() => setScanOpen(false)}>Cancel Scan</button>
+                </>
+              ) : (
+                <div className="adm-lookup-row">
+                  <button className="adm-btn adm-btn--primary" onClick={() => { setLoadError(null); setScanOpen(true); }}>
+                    📷 Scan Card
+                  </button>
+                  <span className="adm-dim">or</span>
+                  <input className="adm-input adm-input--id" type="text" placeholder="Critter ID"
+                    maxLength={8} value={manualId}
+                    onChange={e => setManualId(e.target.value.toUpperCase())}
+                    onKeyDown={e => { if (e.key === 'Enter') loadCritter(manualId); }} />
+                  <button className="adm-btn" onClick={() => loadCritter(manualId)} disabled={loadBusy || manualId.trim().length === 0}>
+                    {loadBusy ? '⏳' : 'Load'}
+                  </button>
+                </div>
+              )}
+              {loadError && <p className="adm-error">{loadError}</p>}
+            </div>
+
+            {/* Editor */}
+            {critter && (
+              <div className="adm-card">
+                <h2 className="adm-card-title">
+                  #{critter.id} <span className="adm-rarity">{critter.rarity}</span>
+                </h2>
+                <p className="adm-dim">Level {critter.level ?? 1} · {critter.xp ?? 0} XP</p>
+
+                {/* Photo */}
+                <div className="adm-photo-row">
+                  {critter.photo_url
+                    ? <img src={critter.photo_url} alt={critter.name ?? critter.id} className="adm-photo" />
+                    : <div className="adm-photo adm-photo--empty"><span>🐾</span><span className="adm-dim">No photo</span></div>}
+                  <button className="adm-btn" onClick={() => fileRef.current?.click()} disabled={photoBusy}>
+                    {photoBusy ? '⏳ Uploading…' : critter.photo_url ? '📷 Retake Photo' : '📷 Take Photo'}
+                  </button>
+                  <input ref={fileRef} type="file" accept="image/*" capture="environment"
+                    style={{ display: 'none' }} onChange={handlePhotoPicked} />
+                </div>
+
+                {/* Name */}
+                <label className="adm-label" htmlFor="adm-name">Name</label>
+                <input id="adm-name" className="adm-input" type="text" maxLength={24}
+                  value={critter.name ?? ''}
+                  onChange={e => setCritter(c => c ? { ...c, name: e.target.value } : c)} />
+
+                {/* Stats */}
+                <div className="adm-stats">
+                  {([
+                    ['strength', '⚔️', 'Strength'],
+                    ['health',   '❤️', 'Health'],
+                    ['stamina',  '🛡️', 'Stamina'],
+                  ] as [StatKey, string, string][]).map(([k, icon, label]) => (
+                    <div key={k} className="adm-stat-row">
+                      <span className="adm-stat-name">{icon} {label}</span>
+                      <div className="adm-stat-ctrl">
+                        <button onClick={() => setStat(k, -1)} disabled={critter[k] <= 0}>−</button>
+                        <span className="adm-stat-val">{critter[k]}</span>
+                        <button onClick={() => setStat(k, 1)} disabled={critter[k] >= 9}>+</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button className="adm-btn adm-btn--primary" onClick={handleSave} disabled={saveBusy}>
+                  {saveBusy ? '⏳ Saving…' : '💾 Save Changes'}
+                </button>
+                {saveMsg && <p className={saveMsg.startsWith('✅') ? 'adm-ok' : 'adm-error'}>{saveMsg}</p>}
+                <a className="adm-view-link" href={`/${critter.id}`} target="_blank" rel="noreferrer">
+                  View public card page →
+                </a>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

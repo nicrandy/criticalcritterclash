@@ -142,6 +142,35 @@ export async function awardBattleXp(critterId: string, stage: number, isBoss: bo
   }
 }
 
+// ─── Idle training ─────────────────────────────────────────────────────────
+// Every 6 h of real time banks one server-simulated training battle (capped
+// at 48 h). Claimed lazily when a card is scanned/viewed — see
+// scripts/setup_idle_training.sql for the rules.
+
+export interface IdleClaimResult {
+  battles_fought: number;
+  wins: number;
+  xp_gained: number;
+  new_xp: number;
+  new_level: number;
+  leveled_up: boolean;
+  strength: number;
+  health: number;
+  stamina: number;
+  log: { opponent: string; won: boolean }[];
+}
+
+/** Fire-and-forget-safe: returns null on any failure, never throws */
+export async function claimIdleBattles(critterId: string): Promise<IdleClaimResult | null> {
+  try {
+    const { data, error } = await supabase.rpc('claim_idle_battles', { p_critter_id: critterId });
+    if (error || !data?.[0]) return null;
+    return data[0] as IdleClaimResult;
+  } catch {
+    return null;
+  }
+}
+
 /** Format start/end dates into a readable range, e.g. "May 23 – 25" or "September 7" */
 export function formatEventDate(start: string, end: string | null): string {
   const startDt = new Date(start + 'T12:00:00');
