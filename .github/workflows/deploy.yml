@@ -18,7 +18,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          # Node 24 ships npm 11, matching the npm that generates
+          # package-lock.json locally — npm 10 (Node 20) rejects the lockfile
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
