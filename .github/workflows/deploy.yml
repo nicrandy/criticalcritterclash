@@ -29,12 +29,16 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Configure Git identity
+        run: |
+          git config --global user.name "ccc-deploy-bot"
+          git config --global user.email "deploy@criticalcritterclash.com"
+
       - name: Deploy to GitHub Pages
         # gh-pages pushes from its own clone, so it needs the token in the
-        # remote URL and an explicit committer identity
+        # remote URL; the committer identity comes from the global git config
         run: >
           npx gh-pages -d dist
           -r "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          -u "github-actions[bot] <41898084+github-actions[bot]@users.noreply.github.com>"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
