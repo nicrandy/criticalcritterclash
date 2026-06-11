@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase, levelFromXp, xpForLevel, claimIdleBattles, type IdleClaimResult } from './supabaseClient';
+import { supabase, levelFromXp, xpForLevel, claimIdleBattles, bonusValue, type IdleClaimResult, type StatBonuses } from './supabaseClient';
 import logo from '../images/product_images/logo.png';
 
 interface CritterRecord {
@@ -13,6 +13,8 @@ interface CritterRecord {
   level: number | null;
   xp: number | null;
   photo_url: string | null;
+  stat_bonuses: StatBonuses | null;
+  card_number: number | null;
 }
 
 const RARITY_COLOR: Record<string, string> = {
@@ -44,7 +46,7 @@ export function CritterPage() {
       const idle = await claimIdleBattles(upperId);
       const { data, error } = await supabase
         .from('critters')
-        .select('id, rarity, strength, health, stamina, name, level, xp, photo_url')
+        .select('id, rarity, strength, health, stamina, name, level, xp, photo_url, stat_bonuses, card_number')
         .eq('id', upperId)
         .single();
       if (cancelled) return;
@@ -64,7 +66,9 @@ export function CritterPage() {
   if (!critter) return null;
 
   const color = RARITY_COLOR[critter.rarity] ?? '#c9a84c';
-  const total = critter.strength + critter.health + critter.stamina;
+  const bonus = (k: 'strength' | 'health' | 'stamina') => bonusValue(critter.stat_bonuses, k);
+  const totalBonus = bonus('strength') + bonus('health') + bonus('stamina');
+  const total = critter.strength + critter.health + critter.stamina + totalBonus;
   const xp = critter.xp ?? 0;
   const level = critter.level ?? levelFromXp(xp);
   const curFloor = xpForLevel(level);
@@ -83,7 +87,9 @@ export function CritterPage() {
         <div className="cc-claim-header">
           <p className="cc-claim-rarity" style={{ color }}>{RARITY_LABEL[critter.rarity] ?? critter.rarity}</p>
           {critter.name && <h1 className="cc-claim-name">{critter.name}</h1>}
-          <p className="cc-claim-id">#{critter.id}</p>
+          <p className="cc-claim-id">
+            #{critter.id}{critter.card_number != null && <> · Card {critter.card_number}</>}
+          </p>
         </div>
 
         {idleReport && (
@@ -115,9 +121,9 @@ export function CritterPage() {
         <div className="cc-divider" style={{ borderColor: color }} />
 
         <div className="cc-claim-stats">
-          <StatRow label="Strength" icon="⚔️"  value={critter.strength} color={color} />
-          <StatRow label="Health"   icon="❤️"  value={critter.health}   color={color} />
-          <StatRow label="Stamina"  icon="🛡️" value={critter.stamina}  color={color} />
+          <StatRow label="Strength" icon="⚔️"  value={critter.strength} bonus={bonus('strength')} color={color} />
+          <StatRow label="Health"   icon="❤️"  value={critter.health}   bonus={bonus('health')}   color={color} />
+          <StatRow label="Stamina"  icon="🛡️" value={critter.stamina}  bonus={bonus('stamina')}  color={color} />
         </div>
 
         <div className="cc-divider" style={{ borderColor: color }} />
@@ -140,7 +146,7 @@ export function CritterPage() {
   );
 }
 
-function StatRow({ label, icon, value, color }: { label: string; icon: string; value: number; color: string }) {
+function StatRow({ label, icon, value, bonus, color }: { label: string; icon: string; value: number; bonus: number; color: string }) {
   return (
     <div className="cc-stat-pip">
       <span className="cc-stat-icon">{icon}</span>
@@ -150,7 +156,9 @@ function StatRow({ label, icon, value, color }: { label: string; icon: string; v
           <div key={i} className="cc-pip" style={i < value ? { background: color, boxShadow: `0 0 4px ${color}` } : {}} />
         ))}
       </div>
-      <span className="cc-stat-pip-value" style={{ color }}>{value}</span>
+      <span className="cc-stat-pip-value" style={{ color }}>
+        {value}{bonus > 0 && <span className="cc-stat-bonus">+{bonus}</span>}
+      </span>
     </div>
   );
 }

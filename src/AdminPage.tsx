@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { supabase } from './supabaseClient';
+import { supabase, bonusValue, type StatBonuses } from './supabaseClient';
 import { QrScanner } from './QrScanner';
 import logo from '../images/product_images/logo.png';
 
@@ -18,6 +18,8 @@ interface AdminCritter {
   level: number | null;
   xp: number | null;
   photo_url: string | null;
+  stat_bonuses: StatBonuses | null;
+  card_number: number | null;
 }
 
 type StatKey = 'strength' | 'health' | 'stamina';
@@ -88,7 +90,7 @@ export function AdminPage() {
     setScanOpen(false); setLoadBusy(true); setLoadError(null); setSaveMsg(null);
     const { data, error } = await supabase
       .from('critters')
-      .select('id, name, rarity, strength, health, stamina, level, xp, photo_url')
+      .select('id, name, rarity, strength, health, stamina, level, xp, photo_url, stat_bonuses, card_number')
       .eq('id', id)
       .single();
     setLoadBusy(false);
@@ -224,7 +226,10 @@ export function AdminPage() {
                 <h2 className="adm-card-title">
                   #{critter.id} <span className="adm-rarity">{critter.rarity}</span>
                 </h2>
-                <p className="adm-dim">Level {critter.level ?? 1} · {critter.xp ?? 0} XP</p>
+                <p className="adm-dim">
+                  Level {critter.level ?? 1} · {critter.xp ?? 0} XP
+                  {critter.card_number != null && <> · Card {critter.card_number}</>}
+                </p>
 
                 {/* Photo */}
                 <div className="adm-photo-row">
@@ -244,7 +249,17 @@ export function AdminPage() {
                   value={critter.name ?? ''}
                   onChange={e => setCritter(c => c ? { ...c, name: e.target.value } : c)} />
 
-                {/* Stats */}
+                {/* Stats — these are the PRINTED card values; level-up
+                    bonuses live in stat_bonuses and are shown read-only */}
+                {(() => {
+                  const parts = (['strength','health','stamina'] as const)
+                    .map(k => ({ k, v: bonusValue(critter.stat_bonuses, k) }))
+                    .filter(x => x.v > 0)
+                    .map(x => `+${x.v} ${({strength:'⚔️',health:'❤️',stamina:'🛡️'})[x.k]}`);
+                  return parts.length > 0
+                    ? <p className="adm-dim">Level bonuses (not editable): {parts.join(' · ')}</p>
+                    : null;
+                })()}
                 <div className="adm-stats">
                   {([
                     ['strength', '⚔️', 'Strength'],

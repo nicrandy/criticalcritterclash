@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { rarityColor, rarityGlow } from './critters';
-import { supabase, submitStageScore, recordBattle, awardBattleXp, claimIdleBattles, xpForLevel, type BattleRecord, type RoundSnap } from './supabaseClient';
+import { supabase, submitStageScore, recordBattle, awardBattleXp, claimIdleBattles, bonusValue, xpForLevel, type BattleRecord, type RoundSnap, type StatBonuses } from './supabaseClient';
 import { QrScanner } from './QrScanner';
 import {
   ACTION_CFG, ADJECTIVES, AI_NAMES, ALIGN_CFG, DEFEND_NAMES,
@@ -169,13 +169,19 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     const idle = await claimIdleBattles(id);
     const { data, error } = await supabase
       .from('critters')
-      .select('id, name, rarity, strength, health, stamina, level, xp')
+      .select('id, name, rarity, strength, health, stamina, level, xp, stat_bonuses')
       .eq('id', id)
       .single();
     if (error || !data) return false;
     const r = (data.rarity as string).toLowerCase() as Rarity;
     setRarity(r);
-    setBase({ strength: data.strength, health: data.health, stamina: data.stamina });
+    // Battle with effective stats: printed card values + level-up bonuses
+    const bon = data.stat_bonuses as StatBonuses | null;
+    setBase({
+      strength: data.strength + bonusValue(bon, 'strength'),
+      health:   data.health   + bonusValue(bon, 'health'),
+      stamina:  data.stamina  + bonusValue(bon, 'stamina'),
+    });
     setPlayerName(data.name ?? '');
     setCritterMode('real');
     setScannedCritterId(data.id);

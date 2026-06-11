@@ -117,6 +117,20 @@ export function xpForLevel(level: number): number {
   return Math.pow(Math.max(1, level) - 1, 2) * 5;
 }
 
+// Level-up rewards live in the critters.stat_bonuses JSONB column — the
+// strength/health/stamina columns are the printed card values and never
+// change. Effective in-game stats = base + bonuses.
+export interface StatBonuses {
+  strength: number;
+  health: number;
+  stamina: number;
+  history?: { level: number; stat: string; at: string }[];
+}
+
+export function bonusValue(b: StatBonuses | null | undefined, k: 'strength' | 'health' | 'stamina'): number {
+  return b?.[k] ?? 0;
+}
+
 export interface AwardXpResult {
   new_xp: number | null;
   new_level: number | null;
