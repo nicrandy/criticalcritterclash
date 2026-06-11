@@ -42,7 +42,7 @@ export function AdminPage() {
   // ── Auth ────────────────────────────────────────────────────────────────────
   const [session,   setSession]   = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [email,     setEmail]     = useState(ADMIN_EMAIL);
+  const [email,     setEmail]     = useState('');
   const [password,  setPassword]  = useState('');
   const [authBusy,  setAuthBusy]  = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -83,19 +83,29 @@ export function AdminPage() {
     setCritter(null); setSaveMsg(null); setLoadError(null);
   };
 
-  // ── Load a critter (from scan or manual entry) ──────────────────────────────
-  const loadCritter = async (rawId: string) => {
-    const id = rawId.trim().toUpperCase();
-    if (!id) return;
+  // ── Load a critter (from scan, 8-char ID, or printed card number) ──────────
+  const loadCritter = async (raw: string) => {
+    const q = raw.trim().toUpperCase();
+    if (!q) return;
     setScanOpen(false); setLoadBusy(true); setLoadError(null); setSaveMsg(null);
-    const { data, error } = await supabase
+    // All-digit input = the card number printed below the QR (e.g. 1105);
+    // otherwise it's the 8-character critter ID
+    const byCardNumber = /^\d{1,6}$/.test(q);
+    let query = supabase
       .from('critters')
-      .select('id, name, rarity, strength, health, stamina, level, xp, photo_url, stat_bonuses, card_number')
-      .eq('id', id)
-      .single();
+      .select('id, name, rarity, strength, health, stamina, level, xp, photo_url, stat_bonuses, card_number');
+    query = byCardNumber ? query.eq('card_number', Number(q)) : query.eq('id', q);
+    const { data, error } = await query.limit(2);
     setLoadBusy(false);
-    if (error || !data) { setLoadError(`No critter found for ID ${id}.`); return; }
-    setCritter(data as AdminCritter);
+    if (error || !data || data.length === 0) {
+      setLoadError(`No critter found for ${byCardNumber ? 'card number' : 'ID'} ${q}.`);
+      return;
+    }
+    if (data.length > 1) {
+      setLoadError(`Card number ${q} matches more than one critter — load it by its 8-character ID instead.`);
+      return;
+    }
+    setCritter(data[0] as AdminCritter);
   };
 
   const setStat = (k: StatKey, delta: number) =>
@@ -208,7 +218,7 @@ export function AdminPage() {
                     📷 Scan Card
                   </button>
                   <span className="adm-dim">or</span>
-                  <input className="adm-input adm-input--id" type="text" placeholder="Critter ID"
+                  <input className="adm-input adm-input--id" type="text" placeholder="ID or card #"
                     maxLength={8} value={manualId}
                     onChange={e => setManualId(e.target.value.toUpperCase())}
                     onKeyDown={e => { if (e.key === 'Enter') loadCritter(manualId); }} />
