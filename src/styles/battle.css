@@ -644,12 +644,13 @@
 .bgm-desc  { font-size:0.72rem; color:var(--text-dim); line-height:1.4; }
 
 /* ── Guild selector row ──────────────────────────── */
+/* All 4 guilds always on one line — buttons shrink rather than wrap */
 .bg-guild-row {
-  display:flex; gap:0.6rem; flex-wrap:wrap;
+  display:flex; gap:0.6rem; flex-wrap:nowrap;
   justify-content:center; width:100%; max-width:480px;
 }
 .bg-guild-btn {
-  flex:1; min-width:88px;
+  flex:1; min-width:0;
   display:flex; flex-direction:column; align-items:center; gap:0.35rem;
   padding:0.85rem 0.5rem; border-radius:12px;
   border:1px solid var(--border); background:transparent;

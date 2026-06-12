@@ -930,7 +930,6 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
               style={{borderColor:ac.color,color:ac.color}}>
               🎲 Roll Dice →
             </button>
-            <button className="bg-back-btn" onClick={()=>setPhase('scan')}>← Back</button>
           </div>
         )}
 

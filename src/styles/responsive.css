@@ -18,6 +18,14 @@
   .bg-modal-scroll { padding: 1.6rem 0.85rem 1.1rem; }
   .bg-panel { gap: 0.7rem; }
   .bg-title { font-size: 1.4rem; }
+  /* Allegiance/guild setup: compact rows so the screen fits one viewport */
+  .bg-align-btn { padding: 0.7rem 0.5rem; gap: 0.25rem; }
+  .bab-desc { display: none; }
+  .bg-guild-row { gap: 0.4rem; }
+  .bg-guild-btn { padding: 0.55rem 0.2rem; gap: 0.25rem; }
+  .bgui-icon { font-size: 1.25rem; }
+  .bgui-name { font-size: 0.6rem; letter-spacing: 0.04em; }
+  .bg-stat-summary { margin: 0.25rem 0; }
   .bg-name-display { padding: 0.4rem 0.7rem; font-size: 0.9rem; }
   .bg-align-row { gap: 0.6rem; }
   .bg-diff-row { gap: 0.4rem; }
