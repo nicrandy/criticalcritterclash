@@ -138,6 +138,11 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
   // the printed (OG) card stats with the bonus called out explicitly
   const [statBonuses, setStatBonuses] = useState<StatBonuses | null>(null);
   const lvlBonus = (k: StatKey) => bonusValue(statBonuses, k);
+  // Photo from the admin portal, shown on the profile screen + battle card
+  const [critterPhoto, setCritterPhoto] = useState<string | null>(null);
+  // Battle prep: the dice roll unlocks only after both choices are made
+  const [alignChosen, setAlignChosen] = useState(false);
+  const [guildChosen, setGuildChosen] = useState(false);
   // "Trained while away" recap shown on the scan-setup screen
   const [idleNote,    setIdleNote]    = useState<string | null>(null);
   // Set after a stage win once the award_battle_xp RPC resolves
@@ -182,10 +187,11 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     const idle = await claimIdleBattles(id);
     const { data, error } = await supabase
       .from('critters')
-      .select('id, name, rarity, strength, health, stamina, level, xp, stat_bonuses')
+      .select('id, name, rarity, strength, health, stamina, level, xp, stat_bonuses, photo_url')
       .eq('id', id)
       .single();
     if (error || !data) return false;
+    setCritterPhoto(data.photo_url ?? null);
     const r = (data.rarity as string).toLowerCase() as Rarity;
     setRarity(r);
     // base = the printed (OG) card stats; level bonuses are tracked separately
@@ -246,6 +252,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     setCritterRollsLeft(3);
     setPlayerName(`${initAdj.word} ${initCritter.word}`);
     setAllocDice([]); setAssigns([null,null,null]); setSelDie(null); setAllocSettled(false);
+    setAlignChosen(true); setGuildChosen(true);   // legacy flow chose these already
     setPhase('rolling');
   };
 
@@ -280,17 +287,6 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     };
     tick();
   };
-
-  // Auto-roll the three dice as soon as the roll screen appears — the player
-  // only needs to assign them, not trigger the roll
-  const autoRolledRef = useRef(false);
-  useEffect(() => {
-    if (phase !== 'rolling') { autoRolledRef.current = false; return; }
-    if (autoRolledRef.current) return;
-    autoRolledRef.current = true;
-    handleAllocRoll();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
 
   // ── Allocation ──────────────────────────────────────────────────────────────
   const handleAssign = (k: StatKey) => {
@@ -371,7 +367,8 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
       stamina:  finalStat('stamina')  + nb('stamina')  + lvlBonus('stamina'),
     };
     const pMaxHp = calcMaxHp(pFinal.health);
-    const pF: Fighter = { name:playerName||'Your Critter', rarity, alignment, guild, base, final:pFinal, hp:pMaxHp, maxHp:pMaxHp };
+    const pF: Fighter = { name:playerName||'Your Critter', rarity, alignment, guild, base, final:pFinal,
+                          hp:pMaxHp, maxHp:pMaxHp, img: critterPhoto ?? undefined };
     const aF = await buildOpponent(1, false);
     const aac = ALIGN_CFG[aF.alignment];
 
@@ -404,6 +401,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
 
   const handleRealProceedToRolling = () => {
     setAllocDice([]); setAssigns([null, null, null]); setSelDie(null); setAllocSettled(false);
+    setAlignChosen(true); setGuildChosen(true);   // legacy flow chose these already
     setPhase('rolling');
   };
 
@@ -717,8 +715,10 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     if (!ok) setScanError('Critter not found. Check your ID and try again.');
   };
 
-  const handleScanSetupContinue = () => {
+  // Profile screen → battle prep: fresh dice and fresh allegiance/guild picks
+  const handleStartBattlePrep = () => {
     setAllocDice([]); setAssigns([null, null, null]); setSelDie(null); setAllocSettled(false);
+    setAlignChosen(false); setGuildChosen(false);
     setPhase('rolling');
   };
 
@@ -864,11 +864,16 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
           </div>
         )}
 
-        {/* ── SCAN SETUP: Alignment + Guild after loading ── */}
+        {/* ── PROFILE: critter overview after scan / rekindle ── */}
         {phase==='scan-setup' && (
           <div className="bg-panel">
             <p className="bg-eyebrow">Your Critter · {rarity[0].toUpperCase()+rarity.slice(1)}</p>
             <h2 className="bg-title" style={{color:rarityColor[rarity]}}>{playerName}</h2>
+
+            {critterPhoto && (
+              <img src={critterPhoto} alt={playerName} className="bg-profile-photo"
+                style={{borderColor:rarityColor[rarity]}} />
+            )}
 
             {(() => {
               const curFloor = xpForLevel(playerLevel);
@@ -901,40 +906,9 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
               ))}
             </div>
 
-            <div className="bg-section-lbl" style={{marginTop:'1rem'}}>Choose Your Allegiance</div>
-            <div className="bg-align-row">
-              {(['good','evil'] as Alignment[]).map(a=>{
-                const cfg=ALIGN_CFG[a], active=alignment===a;
-                return (
-                  <button key={a} onClick={()=>setAlignment(a)}
-                    className={`bg-align-btn ${active?'bg-align-btn--on':''}`}
-                    style={active?{borderColor:cfg.color,boxShadow:`0 0 24px ${cfg.glow}`}:{}}>
-                    <span className="bab-icon">{cfg.icon}</span>
-                    <span className="bab-label" style={active?{color:cfg.color}:{}}>{cfg.label}</span>
-                    <span className="bab-desc">{a==='good'?'Honor & holy power':'Dark power & cunning'}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="bg-section-lbl" style={{marginTop:'0.5rem'}}>Guild</div>
-            <div className="bg-guild-row">
-              {(['rabbit','fox','squirrel','rogue'] as Guild[]).map(g=>{
-                const active=guild===g;
-                return (
-                  <button key={g} onClick={()=>setGuild(g)}
-                    className={`bg-guild-btn ${active?'bg-guild-btn--on':''}`}
-                    style={active?{borderColor:ac.color,boxShadow:`0 0 16px ${ac.glow}`}:{}}>
-                    <span className="bgui-icon">{GUILD_ICONS[g]}</span>
-                    <span className="bgui-name">{g[0].toUpperCase()+g.slice(1)}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <button className="bg-cta" onClick={handleScanSetupContinue}
-              style={{borderColor:ac.color,color:ac.color}}>
-              🎲 Roll Dice →
+            <button className="bg-cta" onClick={handleStartBattlePrep}
+              style={{borderColor:rarityColor[rarity],color:rarityColor[rarity]}}>
+              ⚔️ Start Battle
             </button>
           </div>
         )}
@@ -1143,15 +1117,37 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
             {/* Rarity below the name */}
             <p className="bg-roll-rarity" style={{color:rc}}>{rarity[0].toUpperCase()+rarity.slice(1)}</p>
 
-            {/* Allegiance + guild — prominent badges */}
-            <div className="bg-roll-badges">
-              <span className="bg-roll-badge"
-                style={{borderColor:ac.color,color:ac.color,boxShadow:`0 0 14px ${ac.glow}`}}>
-                {ac.icon} {ac.label}
-              </span>
-              <span className="bg-roll-badge bg-roll-badge--guild">
-                {GUILD_ICONS[guild]} {guild[0].toUpperCase()+guild.slice(1)}
-              </span>
+            {/* Allegiance — must be picked before the dice unlock */}
+            <div className="bg-section-lbl">Choose Your Allegiance</div>
+            <div className="bg-align-row">
+              {(['good','evil'] as Alignment[]).map(a=>{
+                const cfg=ALIGN_CFG[a], active=alignChosen&&alignment===a;
+                return (
+                  <button key={a} onClick={()=>{setAlignment(a);setAlignChosen(true);}}
+                    className={`bg-align-btn ${active?'bg-align-btn--on':''}`}
+                    style={active?{borderColor:cfg.color,boxShadow:`0 0 24px ${cfg.glow}`}:{}}>
+                    <span className="bab-icon">{cfg.icon}</span>
+                    <span className="bab-label" style={active?{color:cfg.color}:{}}>{cfg.label}</span>
+                    <span className="bab-desc">{a==='good'?'Honor & holy power':'Dark power & cunning'}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Guild */}
+            <div className="bg-section-lbl">Guild</div>
+            <div className="bg-guild-row">
+              {(['rabbit','fox','squirrel','rogue'] as Guild[]).map(g=>{
+                const active=guildChosen&&guild===g;
+                return (
+                  <button key={g} onClick={()=>{setGuild(g);setGuildChosen(true);}}
+                    className={`bg-guild-btn ${active?'bg-guild-btn--on':''}`}
+                    style={active?{borderColor:ac.color,boxShadow:`0 0 16px ${ac.glow}`}:{}}>
+                    <span className="bgui-icon">{GUILD_ICONS[g]}</span>
+                    <span className="bgui-name">{g[0].toUpperCase()+g.slice(1)}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Name builder — adjective + critter (generated mode only) */}
@@ -1183,8 +1179,12 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
             )}
 
             <p className="bg-sub" style={{fontSize:'0.82rem'}}>
-              {allocRolling || allocDice.length===0
+              {allocRolling
                 ? 'Rolling…'
+                : allocDice.length===0
+                ? (!alignChosen || !guildChosen
+                    ? 'Pick your allegiance and guild to unlock the dice'
+                    : '🎲 Roll the dice!')
                 : allAssigned
                 ? '⚔️ Ready — press Begin Battle'
                 : 'Click dice to add to stat'}
@@ -1193,11 +1193,8 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
             {/* Dice row */}
             <div className="bg-dice-row">
               {allocDice.length===0 ? (
-                /* Pre-roll: three ? dice, any click triggers the roll */
                 [0,1,2].map(i=>(
-                  <D6Die key={i} value='?' spinning={allocRolling} large
-                    onClick={!allocRolling ? handleAllocRoll : undefined}
-                  />
+                  <D6Die key={i} value='?' spinning={allocRolling} large />
                 ))
               ) : allocRolling ? (
                 /* Spinning animation */
@@ -1222,6 +1219,15 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                 ))
               )}
             </div>
+
+            {/* Roll button — unlocks once allegiance + guild are chosen */}
+            {allocDice.length===0 && !allocRolling && (
+              <button className="bg-cta" onClick={handleAllocRoll}
+                disabled={!alignChosen || !guildChosen}
+                style={{borderColor:ac.color,color:ac.color,opacity:alignChosen&&guildChosen?1:0.4}}>
+                🎲 Roll Dice
+              </button>
+            )}
 
             {/* Stat assignment — visible always; active once dice are rolled and a die is selected */}
             <div className="bg-alloc-stats">
@@ -1252,16 +1258,18 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
               })}
             </div>
 
-            <div className="bg-alloc-footer">
-              <button className="bg-cta bg-cta--ghost" onClick={resetAssigns}
-                disabled={assigns.every(a=>a===null)}>
-                ↺ Reset Dice
-              </button>
-              <button className="bg-cta" onClick={handleBeginBattle} disabled={!allAssigned || matchLoading}
-                style={{borderColor:ac.color,color:ac.color,opacity:allAssigned&&!matchLoading?1:0.4}}>
-                {matchLoading ? '⏳ Summoning rival…' : '⚔️ Begin Battle'}
-              </button>
-            </div>
+            {allocDice.length===3 && !allocRolling && (
+              <div className="bg-alloc-footer">
+                <button className="bg-cta bg-cta--ghost" onClick={resetAssigns}
+                  disabled={assigns.every(a=>a===null)}>
+                  ↺ Reset Dice
+                </button>
+                <button className="bg-cta" onClick={handleBeginBattle} disabled={!allAssigned || matchLoading}
+                  style={{borderColor:ac.color,color:ac.color,opacity:allAssigned&&!matchLoading?1:0.4}}>
+                  {matchLoading ? '⏳ Summoning rival…' : '⚔️ Begin Battle'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

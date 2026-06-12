@@ -218,22 +218,19 @@
   text-shadow:0 0 12px currentColor;
 }
 
-/* ── Roll screen header: rarity under the name, bold allegiance/guild ── */
+/* ── Battle prep header: rarity under the name ── */
 .bg-roll-rarity {
   font-family:var(--font-heading); font-size:0.78rem; font-weight:700;
   letter-spacing:0.18em; text-transform:uppercase;
   margin:-0.6rem 0 0;
 }
-.bg-roll-badges { display:flex; gap:0.6rem; flex-wrap:wrap; justify-content:center; }
-.bg-roll-badge {
-  display:flex; align-items:center; gap:0.45rem;
-  font-family:var(--font-heading); font-size:0.95rem; font-weight:700;
-  letter-spacing:0.04em;
-  padding:0.5rem 1.1rem; border-radius:12px;
-  border:1.5px solid var(--border-light);
-  background:var(--bg-deep); color:var(--text-bright);
+
+/* ── Profile screen photo ── */
+.bg-profile-photo {
+  width: min(220px, 60%);
+  max-height: 200px; object-fit: cover;
+  border-radius: 14px; border: 1.5px solid;
 }
-.bg-roll-badge--guild { border-color:var(--gold-dim); color:var(--gold-light); }
 
 /* "Trained while away" recap on the scan-setup screen */
 .bg-idle-note {
