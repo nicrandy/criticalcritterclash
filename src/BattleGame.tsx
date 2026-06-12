@@ -279,7 +279,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     if (allocRolling || allocDice.length === 3) return;
     setAllocRolling(true); setAllocSettled(false);
     const final = [rollD6(), rollD6(), rollD6()];
-    const delays = [...Array(14).fill(18),...Array(8).fill(40),...Array(5).fill(80),...Array(3).fill(160),...Array(2).fill(280)];
+    const delays = [...Array(10).fill(15),...Array(6).fill(30),...Array(4).fill(60),...Array(2).fill(120),...Array(1).fill(220)];
     let i = 0;
     const tick = () => {
       if (i < delays.length) { setAllocDice([rollD6(),rollD6(),rollD6()]); schedule(tick, delays[i++]); }
@@ -419,7 +419,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     const snapP=player, snapA=ai, snapAiH=aiHeals, snapAiD=aiDefended, snapPS=playerShield, snapAS=aiShield;
     setCombatRolling(true);
     const finalRoll = rollD6();
-    const delays = [...Array(12).fill(18),...Array(8).fill(40),...Array(5).fill(80),...Array(2).fill(160),...Array(2).fill(280)];
+    const delays = [...Array(9).fill(15),...Array(6).fill(30),...Array(4).fill(60),...Array(2).fill(120),...Array(1).fill(220)];
     let i = 0;
     const tick = () => {
       if (i < delays.length) { setCombatRoll(rollD6()); schedule(tick, delays[i++]); }
@@ -431,11 +431,10 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
         setRevealedAIAct(aiAct); setRevealedAIRoll(aiR);
         // RNG turn order: 50 / 50 each round
         const goesFirst: 'player' | 'ai' = Math.random() < 0.5 ? 'player' : 'ai';
-        // After 400 ms showing the settled die, start the spin wheel
+        // Brief beat on the settled die, then the turn-order spin
         schedule(() => {
           setCombatSettled(false);
           setTurnSpinning(true);
-          // Spin for 900 ms, then reveal result for 600 ms before combat begins
           schedule(() => {
             setTurnSpinning(false);
             // Arrow points at whoever goes first and stays up for the whole
@@ -443,9 +442,9 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
             setTurnFirst(goesFirst);
             schedule(() => {
               resolveRound(action, finalRoll, aiAct, aiR, snapP, snapA, snapPS, snapAS, goesFirst);
-            }, 600);
-          }, 900);
-        }, 400);
+            }, 450);
+          }, 600);
+        }, 250);
       }
     };
     tick();
@@ -569,34 +568,34 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
 
       schedule(() => {
         showAIHit();
-        if (r.playerDefeated) { schedule(()=>finishRound(entries,r.pHpFinal,r.aHpFinal,'ai'),2000); return; }
+        if (r.playerDefeated) { schedule(()=>finishRound(entries,r.pHpFinal,r.aHpFinal,'ai'),1400); return; }
 
         schedule(() => {
           setAnimStep('p-act');
 
           schedule(() => {
             showPlayerHit();
-            schedule(()=>finishRound(entries,r.pHpFinal,r.aHpFinal,r.aiDefeated?'player':null),2000);
-          }, 1000);
-        }, 2000);
-      }, 1000);
+            schedule(()=>finishRound(entries,r.pHpFinal,r.aHpFinal,r.aiDefeated?'player':null),1400);
+          }, 700);
+        }, 1400);
+      }, 700);
     } else {
       // ── Player goes first (p-act → a-hit → a-act → p-hit) ───────────────────
       setAnimStep('p-act');
 
       schedule(() => {
         showPlayerHit();
-        if (r.aiDefeated) { schedule(()=>finishRound(entries,r.pHpFinal,r.aHpFinal,'player'),2000); return; }
+        if (r.aiDefeated) { schedule(()=>finishRound(entries,r.pHpFinal,r.aHpFinal,'player'),1400); return; }
 
         schedule(() => {
           setAnimStep('a-act');
 
           schedule(() => {
             showAIHit();
-            schedule(()=>finishRound(entries,r.pHpFinal,r.aHpFinal,r.playerDefeated?'ai':null),2000);
-          }, 1000);
-        }, 2000);
-      }, 1000);
+            schedule(()=>finishRound(entries,r.pHpFinal,r.aHpFinal,r.playerDefeated?'ai':null),1400);
+          }, 700);
+        }, 1400);
+      }, 700);
     }
   };
 

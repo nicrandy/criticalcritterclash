@@ -279,7 +279,7 @@
   position:absolute; top:20%; left:50%; transform:translateX(-50%);
   font-family:var(--font-heading); font-size:2rem; font-weight:900;
   pointer-events:none; z-index:10;
-  animation:floatUp 1.4s ease-out forwards;
+  animation:floatUp 1.1s ease-out forwards;
   text-shadow:0 0 12px currentColor;
 }
 @keyframes floatUp {
