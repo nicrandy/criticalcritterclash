@@ -40,15 +40,22 @@ export function aiAllocateDice(base: Stats, dice: number[]): Stats {
   return r;
 }
 
-// Stage-based AI: base grows 2 pts/stage, 3-pt spread, dice added on top.
-// No 9-cap — AI stats can exceed 9 at high stages (stage 5 → 8-12, stage 9 → 16-19+).
+// ── Stage difficulty curve ────────────────────────────────────────────────────
+// Opponents gain ~2.7 TOTAL stat points per stage (~0.9 per stat), landing
+// around 90 total at stage 30 and growing forever. Real-critter opponents use
+// a slightly lower multiplier because their printed stats (avg ~4.5/stat)
+// already exceed the generated AI's random 0–3 base — both paths converge on
+// the same power at any given stage.
+export const stageBoostGenerated = (stage: number) => Math.floor(Math.max(0, stage - 1) * 0.9);
+export const stageBoostReal      = (stage: number) => Math.floor(Math.max(0, stage - 1) * 0.8);
+
+// Stage-based AI: random 0–3 per stat + the stage boost, dice added on top.
 export function generateAIForStage(stage: number): { base: Stats; final: Stats; rarity: Rarity } {
-  const base_min = Math.max(0, (stage - 1) * 2);
-  const base_max = base_min + 3;
+  const boost = stageBoostGenerated(stage);
   const base: Stats = {
-    strength: randInt(base_min, base_max),
-    health:   randInt(base_min, base_max),
-    stamina:  randInt(base_min, base_max),
+    strength: randInt(0, 3) + boost,
+    health:   randInt(0, 3) + boost,
+    stamina:  randInt(0, 3) + boost,
   };
   const dice = Array.from({ length: diceCountForStage(stage) }, rollD6);
   const final = aiAllocateDice(base, dice);

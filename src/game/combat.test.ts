@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   aiAllocateDice, calcMaxHp, calcPassive, computeRound, diceCountForStage,
-  generateAIForStage, rarityTierForStage, shuffle, type RoundInput,
+  generateAIForStage, rarityTierForStage, shuffle, stageBoostGenerated, stageBoostReal,
+  type RoundInput,
 } from './combat';
 import { levelFromXp, xpForLevel } from '../supabaseClient';
 import type { Fighter, Stats } from './types';
@@ -88,6 +89,24 @@ describe('AI generation', () => {
         expect(base[k]).toBeLessThanOrEqual(3);
         expect(final[k]).toBeGreaterThanOrEqual(base[k]);
       }
+    }
+  });
+
+  it('stage boost follows the ~2.7-total-per-stage curve', () => {
+    expect(stageBoostGenerated(1)).toBe(0);
+    expect(stageBoostGenerated(10)).toBe(8);
+    expect(stageBoostGenerated(30)).toBe(26);    // ≈90 total at stage 30
+    expect(stageBoostReal(1)).toBe(0);
+    expect(stageBoostReal(30)).toBe(23);
+  });
+
+  it('stage-30 generated AI totals land near 90', () => {
+    for (let i = 0; i < 50; i++) {
+      const { final } = generateAIForStage(30);
+      const total = final.strength + final.health + final.stamina;
+      // base 26-29 per stat (78-87 total) + 3 dice (3-18)
+      expect(total).toBeGreaterThanOrEqual(81);
+      expect(total).toBeLessThanOrEqual(105);
     }
   });
 });

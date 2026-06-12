@@ -8,7 +8,8 @@ import {
 } from './game/battleData';
 import {
   aiAllocateDice, calcMaxHp, computeRound, diceCountForStage, generateAIForStage,
-  pick, pickAIAction, rarityTierForStage, rollD6, rollPerkChoices, rollStatForRarity, uid,
+  pick, pickAIAction, rarityTierForStage, rollD6, rollPerkChoices, rollStatForRarity,
+  stageBoostReal, uid,
 } from './game/combat';
 import { D6Die, FighterCard, PotionStack } from './game/components';
 import type {
@@ -52,9 +53,14 @@ async function fetchRealOpponent(stage: number, excludeId: string | null):
   if (error || !data || data.length === 0) return null;
   const opp = data[Math.floor(Math.random() * data.length)] as
     { id: string; name: string | null; rarity: string; strength: number; health: number; stamina: number };
-  const base: Stats = { strength: opp.strength, health: opp.health, stamina: opp.stamina };
-  // Same dice-based scaling as the generated AI, applied on top of the
-  // real critter's stats so later stages stay progressively harder.
+  // Printed stats + per-stat stage boost, so real opponents follow the same
+  // difficulty curve as generated ones (~90 total at stage 30)
+  const boost = stageBoostReal(stage);
+  const base: Stats = {
+    strength: opp.strength + boost,
+    health:   opp.health   + boost,
+    stamina:  opp.stamina  + boost,
+  };
   const dice = Array.from({ length: diceCountForStage(stage) }, rollD6);
   const final = aiAllocateDice(base, dice);
   return { base, final, rarity: tier, name: opp.name ?? 'Wild Critter', id: opp.id };
