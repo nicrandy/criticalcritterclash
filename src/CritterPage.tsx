@@ -68,7 +68,7 @@ export function CritterPage() {
   const color = RARITY_COLOR[critter.rarity] ?? '#c9a84c';
   const bonus = (k: 'strength' | 'health' | 'stamina') => bonusValue(critter.stat_bonuses, k);
   const totalBonus = bonus('strength') + bonus('health') + bonus('stamina');
-  const total = critter.strength + critter.health + critter.stamina + totalBonus;
+  const baseTotal  = critter.strength + critter.health + critter.stamina;
   const xp = critter.xp ?? 0;
   const level = critter.level ?? levelFromXp(xp);
   const curFloor = xpForLevel(level);
@@ -130,7 +130,11 @@ export function CritterPage() {
 
         <div className="cc-total-row">
           <span className="cc-total-label">Total Power</span>
-          <span className="cc-total-value" style={{ color }}>{total}<span className="cc-total-max"> / 27</span></span>
+          <span className="cc-total-value" style={{ color }}>
+            {baseTotal}
+            <span className={`cc-stat-bonus${totalBonus > 0 ? '' : ' cc-stat-bonus--zero'}`}>+{totalBonus}</span>
+            <span className="cc-total-max"> / 27</span>
+          </span>
         </div>
 
         <a
@@ -157,7 +161,8 @@ function StatRow({ label, icon, value, bonus, color }: { label: string; icon: st
         ))}
       </div>
       <span className="cc-stat-pip-value" style={{ color }}>
-        {value}{bonus > 0 && <span className="cc-stat-bonus">+{bonus}</span>}
+        {value}
+        <span className={`cc-stat-bonus${bonus > 0 ? '' : ' cc-stat-bonus--zero'}`}>+{bonus}</span>
       </span>
     </div>
   );
