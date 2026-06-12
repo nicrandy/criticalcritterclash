@@ -838,6 +838,8 @@
 }
 .bg-ssc-lbl { font-size: 0.65rem; font-weight: 700; color: rgba(255,255,255,0.4); text-transform: uppercase; }
 .bg-ssc-val { font-size: 1.4rem; font-weight: 800; }
+/* Level-up bonus shown under the printed (OG) stat */
+.bg-ssc-bonus { font-size: 0.75rem; font-weight: 700; color: #4ade80; margin-top: -0.15rem; }
 
 /* ── QR Camera Scanner ───────────────────────────────────── */
 .qr-scanner-wrap {

@@ -160,9 +160,9 @@ function StatRow({ label, icon, value, bonus, color }: { label: string; icon: st
           <div key={i} className="cc-pip" style={i < value ? { background: color, boxShadow: `0 0 4px ${color}` } : {}} />
         ))}
       </div>
-      <span className="cc-stat-pip-value" style={{ color }}>
+      <span className="cc-stat-pip-value cc-stat-pip-value--stacked" style={{ color }}>
         {value}
-        <span className={`cc-stat-bonus${bonus > 0 ? '' : ' cc-stat-bonus--zero'}`}>+{bonus}</span>
+        <span className={`cc-stat-bonus cc-stat-bonus--below${bonus > 0 ? '' : ' cc-stat-bonus--zero'}`}>+{bonus}</span>
       </span>
     </div>
   );

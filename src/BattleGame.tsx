@@ -128,6 +128,10 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
   // Persistent level/XP for the scanned critter (from Supabase)
   const [playerLevel, setPlayerLevel] = useState(1);
   const [playerXp,    setPlayerXp]    = useState(0);
+  // Level-up stat bonuses — kept separate from `base` so screens always show
+  // the printed (OG) card stats with the bonus called out explicitly
+  const [statBonuses, setStatBonuses] = useState<StatBonuses | null>(null);
+  const lvlBonus = (k: StatKey) => bonusValue(statBonuses, k);
   // "Trained while away" recap shown on the scan-setup screen
   const [idleNote,    setIdleNote]    = useState<string | null>(null);
   // Set after a stage win once the award_battle_xp RPC resolves
@@ -178,13 +182,10 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     if (error || !data) return false;
     const r = (data.rarity as string).toLowerCase() as Rarity;
     setRarity(r);
-    // Battle with effective stats: printed card values + level-up bonuses
-    const bon = data.stat_bonuses as StatBonuses | null;
-    setBase({
-      strength: data.strength + bonusValue(bon, 'strength'),
-      health:   data.health   + bonusValue(bon, 'health'),
-      stamina:  data.stamina  + bonusValue(bon, 'stamina'),
-    });
+    // base = the printed (OG) card stats; level bonuses are tracked separately
+    // and added on top at battle start
+    setBase({ strength: data.strength, health: data.health, stamina: data.stamina });
+    setStatBonuses(data.stat_bonuses as StatBonuses | null);
     setPlayerName(data.name ?? '');
     setCritterMode('real');
     setScannedCritterId(data.id);
@@ -357,10 +358,11 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     const nb = (k: StatKey) => critterMode === 'generated'
       ? (selectedAdj?.bonus[k] ?? 0) + (selectedCritter?.bonus[k] ?? 0)
       : 0;
+    // Final battle stats = printed base + dice + name bonus + level-up bonuses
     const pFinal: Stats = {
-      strength: finalStat('strength') + nb('strength'),
-      health:   finalStat('health')   + nb('health'),
-      stamina:  finalStat('stamina')  + nb('stamina'),
+      strength: finalStat('strength') + nb('strength') + lvlBonus('strength'),
+      health:   finalStat('health')   + nb('health')   + lvlBonus('health'),
+      stamina:  finalStat('stamina')  + nb('stamina')  + lvlBonus('stamina'),
     };
     const pMaxHp = calcMaxHp(pFinal.health);
     const pF: Fighter = { name:playerName||'Your Critter', rarity, alignment, guild, base, final:pFinal, hp:pMaxHp, maxHp:pMaxHp };
@@ -882,11 +884,12 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
             {idleNote && <p className="bg-idle-note">{idleNote}</p>}
 
             <div className="bg-stat-summary">
-              {([['⚔️','STR',base.strength],['❤️','HP',base.health],['🛡️','DEF',base.stamina]] as [string,string,number][]).map(([icon,lbl,val])=>(
+              {([['⚔️','STR','strength'],['❤️','HP','health'],['🛡️','DEF','stamina']] as [string,string,StatKey][]).map(([icon,lbl,k])=>(
                 <div key={lbl} className="bg-stat-summary-chip" style={{borderColor:rarityColor[rarity]}}>
                   <span>{icon}</span>
                   <span className="bg-ssc-lbl">{lbl}</span>
-                  <span className="bg-ssc-val" style={{color:rarityColor[rarity]}}>{val}</span>
+                  <span className="bg-ssc-val" style={{color:rarityColor[rarity]}}>{base[k]}</span>
+                  {lvlBonus(k) > 0 && <span className="bg-ssc-bonus">+{lvlBonus(k)}</span>}
                 </div>
               ))}
             </div>
@@ -1222,7 +1225,8 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                 const diceBonus = assigns.reduce((s,a,i)=>a===k?s+allocDice[i]:s,0);
                 const nameBonus = critterMode==='generated'
                   ? (selectedAdj?.bonus[k]??0) + (selectedCritter?.bonus[k]??0) : 0;
-                const total = base[k] + diceBonus + nameBonus;
+                const levelBonus = lvlBonus(k);
+                const total = base[k] + diceBonus + nameBonus + levelBonus;
                 const ready = selDie!==null && allocDice.length===3 && !allocRolling;
                 return (
                   <button key={k} onClick={()=>handleAssign(k)} disabled={!ready}
@@ -1232,9 +1236,10 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                     <span className="bab-name">{names[k]}</span>
                     <span className="bab-val">
                       {base[k]}
+                      {levelBonus>0&&<span className="bab-plus bab-plus--name"> +{levelBonus}🏅</span>}
                       {nameBonus>0&&<span className="bab-plus bab-plus--name"> +{nameBonus}✨</span>}
                       {diceBonus>0&&<span className="bab-plus"> +{diceBonus}</span>}
-                      {(nameBonus+diceBonus)>0&&<> = <strong>{total}</strong></>}
+                      {(nameBonus+diceBonus+levelBonus)>0&&<> = <strong>{total}</strong></>}
                     </span>
                   </button>
                 );
