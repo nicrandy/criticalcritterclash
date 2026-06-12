@@ -274,6 +274,17 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     tick();
   };
 
+  // Auto-roll the three dice as soon as the roll screen appears — the player
+  // only needs to assign them, not trigger the roll
+  const autoRolledRef = useRef(false);
+  useEffect(() => {
+    if (phase !== 'rolling') { autoRolledRef.current = false; return; }
+    if (autoRolledRef.current) return;
+    autoRolledRef.current = true;
+    handleAllocRoll();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
   // ── Allocation ──────────────────────────────────────────────────────────────
   const handleAssign = (k: StatKey) => {
     if (selDie===null) return;
@@ -1095,9 +1106,6 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
         {/* ── STEP 3+4+5: Roll dice & assign — combined screen ── */}
         {(phase==='rolling' || phase==='allocating') && (
           <div className="bg-panel">
-            <p className="bg-eyebrow">{ac.icon} {ac.label} · {GUILD_ICONS[guild]} {guild[0].toUpperCase()+guild.slice(1)} · {rarity[0].toUpperCase()+rarity.slice(1)}</p>
-            <h2 className="bg-title">Your Critter</h2>
-
             {/* Name — locked to the scanned critter's name; editable only for legacy generated mode */}
             <div className="bg-name-row">
               {scannedCritterId ? (
@@ -1121,6 +1129,20 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                   )}
                 </>
               )}
+            </div>
+
+            {/* Rarity below the name */}
+            <p className="bg-roll-rarity" style={{color:rc}}>{rarity[0].toUpperCase()+rarity.slice(1)}</p>
+
+            {/* Allegiance + guild — prominent badges */}
+            <div className="bg-roll-badges">
+              <span className="bg-roll-badge"
+                style={{borderColor:ac.color,color:ac.color,boxShadow:`0 0 14px ${ac.glow}`}}>
+                {ac.icon} {ac.label}
+              </span>
+              <span className="bg-roll-badge bg-roll-badge--guild">
+                {GUILD_ICONS[guild]} {guild[0].toUpperCase()+guild.slice(1)}
+              </span>
             </div>
 
             {/* Name builder — adjective + critter (generated mode only) */}
@@ -1152,13 +1174,11 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
             )}
 
             <p className="bg-sub" style={{fontSize:'0.82rem'}}>
-              {allocDice.length===0
-                ? 'Click any die to roll all three and boost your stats.'
-                : allocRolling
+              {allocRolling || allocDice.length===0
                 ? 'Rolling…'
-                : selDie!==null
-                ? 'Now tap a stat below to assign that die.'
-                : 'Select a die, then tap a stat. Click × to un-assign.'}
+                : allAssigned
+                ? '⚔️ Ready — press Begin Battle'
+                : 'Click dice to add to stat'}
             </p>
 
             {/* Dice row */}
@@ -1207,6 +1227,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                 return (
                   <button key={k} onClick={()=>handleAssign(k)} disabled={!ready}
                     className={`bg-alloc-btn ${ready?'bg-alloc-btn--ready':''}`}>
+                    <span className={`bab-add${ready?' bab-add--on':''}`} aria-hidden="true">＋</span>
                     <span>{icons[k]}</span>
                     <span className="bab-name">{names[k]}</span>
                     <span className="bab-val">
@@ -1223,7 +1244,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
             <div className="bg-alloc-footer">
               <button className="bg-cta bg-cta--ghost" onClick={resetAssigns}
                 disabled={assigns.every(a=>a===null)}>
-                ↺ Reset
+                ↺ Reset Dice
               </button>
               <button className="bg-cta" onClick={handleBeginBattle} disabled={!allAssigned || matchLoading}
                 style={{borderColor:ac.color,color:ac.color,opacity:allAssigned&&!matchLoading?1:0.4}}>
