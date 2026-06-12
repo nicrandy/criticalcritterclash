@@ -617,6 +617,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
         const rec: BattleRecord = {
           stage: meta.stage, death_count: meta.deathCount, is_boss: meta.isBoss,
           boss_boost_stat: meta.a.bossBoostStat ?? null,
+          p_critter_id: scannedCritterId,
           p_alignment: meta.p.alignment, p_rarity: meta.p.rarity, p_guild: meta.p.guild ?? 'none',
           p_str: meta.p.final.strength, p_hp_stat: meta.p.final.health,
           p_def: meta.p.final.stamina, p_max_hp: meta.p.maxHp,

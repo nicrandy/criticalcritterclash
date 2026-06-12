@@ -84,6 +84,8 @@ export interface RoundSnap {
 
 export interface BattleRecord {
   stage: number; death_count: number; is_boss: boolean; boss_boost_stat: string | null;
+  /** Scanned card ID of the player's critter; null for generated critters */
+  p_critter_id: string | null;
   p_alignment: string; p_rarity: string; p_guild: string;
   p_str: number; p_hp_stat: number; p_def: number; p_max_hp: number;
   p_max_heals: number; p_bonus_atk: number; p_bonus_passive: number;
