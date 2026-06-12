@@ -10,7 +10,7 @@ import {
   aiAllocateDice, calcMaxHp, computeRound, diceCountForStage, generateAIForStage,
   pick, pickAIAction, rarityTierForStage, rollD6, rollPerkChoices, rollStatForRarity, uid,
 } from './game/combat';
-import { D6Die, FighterCard } from './game/components';
+import { D6Die, FighterCard, PotionStack } from './game/components';
 import type {
   Action, Alignment, AnimStep, Fighter, FloatDmg, Guild, LogEntry,
   NamePart, PerkDef, Rarity, StatKey, Stats,
@@ -1307,9 +1307,10 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                     .filter(a => !(a==='defend' && playerDefended) && !(a==='heal' && playerHeals>=maxPlayerHeals))
                     .map(a=>(
                       <button key={a} className="bg-action-btn" onClick={()=>handleChooseAction(a)}>
-                        <span className="bact-icon">{ACTION_CFG[a].icon}</span>
+                        {a==='heal'
+                          ? <PotionStack count={healsLeft}/>
+                          : <span className="bact-icon">{ACTION_CFG[a].icon}</span>}
                         <span className="bact-label">{ACTION_CFG[a].label}</span>
-                        {a==='heal' && <span className="bact-uses">{maxPlayerHeals-playerHeals} left</span>}
                       </button>
                     ))
                   }
@@ -1358,8 +1359,8 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                 </div>
                 {healsLeft > 0 && (
                   <button className="bg-perk-heal" onClick={handlePerkHeal} disabled={matchLoading}>
-                    🧪 Use a Heal — restore {Math.round(player.maxHp * 0.5)} HP
-                    <span className="bph-uses">{healsLeft} remaining</span>
+                    <PotionStack count={healsLeft}/>
+                    Use a Heal — restore {Math.round(player.maxHp * 0.5)} HP
                   </button>
                 )}
                 <p className="bg-sub" style={{fontSize:'0.78rem',marginTop:'0.5rem'}}>

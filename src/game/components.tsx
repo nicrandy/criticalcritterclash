@@ -1,6 +1,21 @@
 import { rarityColor } from '../critters';
 import { ALIGN_CFG, D6_DOTS, GUILD_ICONS, PORTRAITS } from './battleData';
 import type { AnimStep, Fighter, FloatDmg, StatKey } from './types';
+import healPotionImg from '../../images/product_images/heal-potion.png';
+
+// ─── PotionStack — heal inventory: one large potion + a small one per extra ───
+// Heals are capped at 4 (3 base + 1 Extra Vial perk), so at most 1 large + 3 small.
+export function PotionStack({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="potion-stack" title={`${count} heal${count > 1 ? 's' : ''} available`}>
+      <img src={healPotionImg} alt={`${count} heal${count > 1 ? 's' : ''}`} className="potion-img potion-img--lg" />
+      {Array.from({ length: Math.min(3, count - 1) }, (_, i) => (
+        <img key={i} src={healPotionImg} alt="" className="potion-img potion-img--sm" />
+      ))}
+    </span>
+  );
+}
 
 export function D6Die({ value, spinning, selected, used, onClick, large, settled }: {
   value: number | '?'; spinning?: boolean; selected?: boolean;
@@ -91,7 +106,7 @@ export function FighterCard({ fighter, label, animStep, side, floatDmg, shield, 
         {(healsLeft !== undefined || canDefend !== undefined) && (
           <div className="fg-resources">
             <span className={`fg-res fg-res--heal${healsLeft! > 0 ? '' : ' fg-res--used'}`} title={healsLeft! > 0 ? 'Heal available' : 'Heal used'}>
-              🧪
+              <img src={healPotionImg} alt="" className="fg-res-img" />
             </span>
             <span className={`fg-res fg-res--defend${canDefend ? '' : ' fg-res--used'}`} title={canDefend ? 'Block available' : 'Block used'}>
               🛡

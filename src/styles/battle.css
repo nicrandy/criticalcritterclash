@@ -788,11 +788,17 @@
 }
 .bg-perk-heal:hover { background: rgba(248,113,113,0.14); box-shadow: 0 0 18px rgba(248,113,113,0.25); }
 .bg-perk-heal:disabled { opacity: 0.35; cursor: default; }
-.bph-uses {
-  font-size: 0.75rem; opacity: 0.6;
-  border: 1px solid rgba(248,113,113,0.3);
-  border-radius: 999px; padding: 0.1rem 0.45rem;
+
+/* ── Heal potion inventory — one large + a small per extra (max 4) ── */
+.potion-stack { display: inline-flex; align-items: flex-end; gap: 2px; line-height: 0; }
+.potion-img { object-fit: contain; }
+.potion-img--lg {
+  width: 30px; height: 30px;
+  filter: drop-shadow(0 0 6px rgba(248,113,113,0.55));
 }
+.potion-img--sm { width: 17px; height: 17px; opacity: 0.95; }
+/* Rival card resource icon */
+.fg-res-img { width: 16px; height: 16px; object-fit: contain; display: block; }
 
 /* ── Scan mode button ───────────────────────────────────── */
 .bg-mode-btn--scan { max-width: 280px; margin: 0 auto; }
