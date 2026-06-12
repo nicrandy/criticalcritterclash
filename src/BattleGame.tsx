@@ -419,7 +419,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     const snapP=player, snapA=ai, snapAiH=aiHeals, snapAiD=aiDefended, snapPS=playerShield, snapAS=aiShield;
     setCombatRolling(true);
     const finalRoll = rollD6();
-    const delays = [...Array(9).fill(15),...Array(6).fill(30),...Array(4).fill(60),...Array(2).fill(120),...Array(1).fill(220)];
+    const delays = [...Array(8).fill(15),...Array(5).fill(30),...Array(3).fill(60),...Array(2).fill(100),...Array(1).fill(150)];
     let i = 0;
     const tick = () => {
       if (i < delays.length) { setCombatRoll(rollD6()); schedule(tick, delays[i++]); }
@@ -576,9 +576,9 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
           schedule(() => {
             showPlayerHit();
             schedule(()=>finishRound(entries,r.pHpFinal,r.aHpFinal,r.aiDefeated?'player':null),1000);
-          }, 700);
+          }, 500);
         }, 1000);
-      }, 700);
+      }, 500);
     } else {
       // â”€â”€ Player goes first (p-act â†’ a-hit â†’ a-act â†’ p-hit) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       setAnimStep('p-act');
@@ -593,9 +593,9 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
           schedule(() => {
             showAIHit();
             schedule(()=>finishRound(entries,r.pHpFinal,r.aHpFinal,r.playerDefeated?'ai':null),1000);
-          }, 700);
+          }, 500);
         }, 1000);
-      }, 700);
+      }, 500);
     }
   };
 
