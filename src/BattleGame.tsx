@@ -62,7 +62,9 @@ async function fetchRealOpponent(stage: number, excludeId: string | null):
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId?: string | null }) {
-  const [phase,          setPhase]         = useState<Phase>('mode');
+  // Opened from a critter page with the ID already known? Start on the scan
+  // panel in its loading state — never flash the camera/scan chooser.
+  const [phase,          setPhase]         = useState<Phase>(scannedId ? 'scan' : 'mode');
   const [critterMode,    setCritterMode]   = useState<'real'|'generated'>('generated');
   const [alignment,      setAlignment]     = useState<Alignment>('good');
   const [rarity,         setRarity]        = useState<Rarity>('rare');
@@ -115,9 +117,10 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
   const [matchLoading, setMatchLoading] = useState(false);
   const matchingRef = useRef(false);
 
-  // QR scan state
+  // QR scan state — starts "loading" when a scanned ID was handed in, so the
+  // camera never mounts on first paint
   const [scanId,       setScanId]       = useState('');
-  const [scanLoading,  setScanLoading]  = useState(false);
+  const [scanLoading,  setScanLoading]  = useState(!!scannedId);
   const [scanError,    setScanError]    = useState<string|null>(null);
   // ID of the player's scanned critter — used to lock the name field and
   // exclude self-matches during async opponent matchmaking.
@@ -821,10 +824,10 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
         {phase==='scan' && (
           <div className="bg-panel">
             <p className="bg-eyebrow">Arena</p>
-            <h2 className="bg-title">Scan Your Card</h2>
+            <h2 className="bg-title">{scanLoading ? 'Your Critter' : 'Scan Your Card'}</h2>
 
             {scanLoading ? (
-              <p className="bg-sub" style={{textAlign:'center',padding:'2rem 0'}}>⏳ Loading critter…</p>
+              <p className="bg-sub" style={{textAlign:'center',padding:'2rem 0'}}>⏳ Summoning your critter…</p>
             ) : (
               <QrScanner
                 onScan={(id) => {
