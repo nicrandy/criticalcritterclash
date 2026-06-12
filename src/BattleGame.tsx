@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { rarityColor, rarityGlow } from './critters';
 import { supabase, submitStageScore, recordBattle, awardBattleXp, claimIdleBattles, bonusValue, xpForLevel, type BattleRecord, type RoundSnap, type StatBonuses } from './supabaseClient';
 import { QrScanner } from './QrScanner';
@@ -17,14 +17,14 @@ import type {
   NamePart, PerkDef, Rarity, StatKey, Stats,
 } from './game/types';
 
-// â”€â”€â”€ Critter photos (used as boss portraits) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Critter photos (used as boss portraits) ──────────────────────────────────
 const _critterMods = import.meta.glob(
   '../images/product_images/critters/*.{png,jpg,jpeg,gif,webp}',
   { eager: true, import: 'default' }
 ) as Record<string, string>;
 const CRITTER_PHOTOS = Object.values(_critterMods).filter(Boolean) as string[];
 
-// â”€â”€â”€ Local types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Local types ──────────────────────────────────────────────────────────────
 type Phase      = 'mode' | 'scan' | 'scan-setup' | 'setup' | 'rolling' | 'allocating' | 'real-setup' | 'real-stats' | 'battle' | 'result';
 type BattleStep = 'choose' | 'player-rolling' | 'animating';
 
@@ -66,10 +66,10 @@ async function fetchRealOpponent(stage: number, excludeId: string | null):
   return { base, final, rarity: tier, name: opp.name ?? 'Wild Critter', id: opp.id };
 }
 
-// â”€â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Main component ───────────────────────────────────────────────────────────
 export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId?: string | null }) {
   // Opened from a critter page with the ID already known? Start on the scan
-  // panel in its loading state â€” never flash the camera/scan chooser.
+  // panel in its loading state — never flash the camera/scan chooser.
   const [phase,          setPhase]         = useState<Phase>(scannedId ? 'scan' : 'mode');
   const [critterMode,    setCritterMode]   = useState<'real'|'generated'>('generated');
   const [alignment,      setAlignment]     = useState<Alignment>('good');
@@ -118,23 +118,23 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
   const [isBoss,          setIsBoss]          = useState(false);
   const [deathCount,      setDeathCount]      = useState(0);   // bonfire restarts this session
 
-  // True while opponent matchmaking is awaiting Supabase â€” disables the
+  // True while opponent matchmaking is awaiting Supabase — disables the
   // buttons that trigger it so a double-click can't start two battles.
   const [matchLoading, setMatchLoading] = useState(false);
   const matchingRef = useRef(false);
 
-  // QR scan state â€” starts "loading" when a scanned ID was handed in, so the
+  // QR scan state — starts "loading" when a scanned ID was handed in, so the
   // camera never mounts on first paint
   const [scanId,       setScanId]       = useState('');
   const [scanLoading,  setScanLoading]  = useState(!!scannedId);
   const [scanError,    setScanError]    = useState<string|null>(null);
-  // ID of the player's scanned critter â€” used to lock the name field and
+  // ID of the player's scanned critter — used to lock the name field and
   // exclude self-matches during async opponent matchmaking.
   const [scannedCritterId, setScannedCritterId] = useState<string|null>(null);
   // Persistent level/XP for the scanned critter (from Supabase)
   const [playerLevel, setPlayerLevel] = useState(1);
   const [playerXp,    setPlayerXp]    = useState(0);
-  // Level-up stat bonuses â€” kept separate from `base` so screens always show
+  // Level-up stat bonuses — kept separate from `base` so screens always show
   // the printed (OG) card stats with the bonus called out explicitly
   const [statBonuses, setStatBonuses] = useState<StatBonuses | null>(null);
   const lvlBonus = (k: StatKey) => bonusValue(statBonuses, k);
@@ -204,7 +204,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     setPlayerLevel(data.level ?? 1);
     setPlayerXp(data.xp ?? 0);
     setIdleNote(idle && idle.battles_fought > 0
-      ? `ðŸŒ™ Trained while away: won ${idle.wins} of ${idle.battles_fought} Â· +${idle.xp_gained} XP${idle.leveled_up ? ` Â· ðŸ… Level ${idle.new_level}!` : ''}`
+      ? `🌙 Trained while away: won ${idle.wins} of ${idle.battles_fought} · +${idle.xp_gained} XP${idle.leveled_up ? ` · 🏅 Level ${idle.new_level}!` : ''}`
       : null);
     setPhase('scan-setup');
     return true;
@@ -235,7 +235,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     finally { matchingRef.current = false; setMatchLoading(false); }
   };
 
-  // â”€â”€ Generated critter: auto-roll stats + name, skip reveal screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Generated critter: auto-roll stats + name, skip reveal screen ───────────
   const handleStartEnchant = () => {
     const newBase: Stats = {
       strength: rollStatForRarity(rarity),
@@ -274,7 +274,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     setPlayerName(`${selectedAdj?.word ?? ''} ${next.word}`);
   };
 
-  // â”€â”€ Pre-battle dice â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Pre-battle dice ─────────────────────────────────────────────────────────
   const handleAllocRoll = () => {
     if (allocRolling || allocDice.length === 3) return;
     setAllocRolling(true); setAllocSettled(false);
@@ -288,7 +288,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     tick();
   };
 
-  // â”€â”€ Allocation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Allocation ──────────────────────────────────────────────────────────────
   const handleAssign = (k: StatKey) => {
     if (selDie===null) return;
     setAssigns(p=>{ const n=[...p]; n[selDie]=k; return n; });
@@ -302,7 +302,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
   const allAssigned = assigns.every(a=>a!==null);
   const finalStat = (k: StatKey) => base[k] + assigns.reduce((s,a,i)=>a===k?s+allocDice[i]:s, 0);
 
-  // â”€â”€ Stage setup (shared by begin / next / bonfire) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Stage setup (shared by begin / next / bonfire) ──────────────────────────
   const buildOpponent = async (effStage: number, boss: boolean): Promise<Fighter> => {
     const aiAlign: Alignment = alignment === 'good' ? 'evil' : 'good';
     const real = await fetchRealOpponent(effStage, scannedCritterId);
@@ -353,7 +353,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     setPhase('battle');
   };
 
-  // â”€â”€ Begin battle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Begin battle ────────────────────────────────────────────────────────────
   const handleBeginBattle = () => beginMatch(async () => {
     if (!allAssigned) return;
     // Name bonus: adjective + critter bonuses (generated mode only)
@@ -378,18 +378,18 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
       stageNum: 1, deaths: deathCount, boss: false, pFighter: pF, aFighter: aF,
       run: { maxHeals: 3, bonusAtk: 0, bonusPass: 0 },
       logLines: [
-        {id:uid(),type:'info',text:`âš”ï¸  Battle begins!  ${pF.name}  vs  ${aF.name}`},
-        {id:uid(),type:'info',text:`You â€” ${ac.icon} ${ac.label} Â· STR ${pFinal.strength} Â· â¤ï¸ ${pMaxHp} HP Â· ðŸ›¡ï¸ ${pFinal.stamina} shield`},
-        {id:uid(),type:'info',text:`${aF.name} â€” ${aac.icon} ${aac.label} Â· STR ${aF.final.strength} Â· â¤ï¸ ${aF.maxHp} HP Â· ðŸ›¡ï¸ ${aF.final.stamina} shield`},
+        {id:uid(),type:'info',text:`⚔️  Battle begins!  ${pF.name}  vs  ${aF.name}`},
+        {id:uid(),type:'info',text:`You — ${ac.icon} ${ac.label} · STR ${pFinal.strength} · ❤️ ${pMaxHp} HP · 🛡️ ${pFinal.stamina} shield`},
+        {id:uid(),type:'info',text:`${aF.name} — ${aac.icon} ${aac.label} · STR ${aF.final.strength} · ❤️ ${aF.maxHp} HP · 🛡️ ${aF.final.stamina} shield`},
       ],
     });
   });
 
-  // â”€â”€ Real critter battle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Real critter battle ─────────────────────────────────────────────────────
   const handleGenerateName = () => setPlayerName(pick(GUILD_NAMES[guild]));
 
   const handleRealStat = (k: StatKey, delta: number) => {
-    // Stats are 0â€“9 regardless of rank; dice allocation adds on top after
+    // Stats are 0–9 regardless of rank; dice allocation adds on top after
     setBase(b => ({ ...b, [k]: Math.max(0, Math.min(9, b[k] + delta)) }));
   };
 
@@ -405,7 +405,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     setPhase('rolling');
   };
 
-  // â”€â”€ Combat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Combat ──────────────────────────────────────────────────────────────────
   // Action selection auto-triggers the dice roll and turn-order spin immediately
   const handleChooseAction = (action: Action) => {
     if (combatRolling || !player || !ai) return;
@@ -424,7 +424,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     const tick = () => {
       if (i < delays.length) { setCombatRoll(rollD6()); schedule(tick, delays[i++]); }
       else {
-        // Die settles â€” show result, pick AI move, then spin for turn order
+        // Die settles — show result, pick AI move, then spin for turn order
         setCombatRoll(finalRoll); setCombatRolling(false); setCombatSettled(true);
         const aiAct = pickAIAction(snapA, snapP, lastPlayerAct, snapAiH, snapAiD);
         const aiR   = rollD6();
@@ -479,40 +479,40 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
       : aAct==='defend' ? pick(DEFEND_NAMES[curA.alignment]) : pick(HEAL_NAMES[curA.alignment]);
     const aac = ALIGN_CFG[curA.alignment];
 
-    // â”€â”€ Log (only actions that actually resolved) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const entries: LogEntry[] = [{id:uid(),type:'separator',text:`â”€â”€ Round ${round} â”€â”€`}];
+    // ── Log (only actions that actually resolved) ────────────────────────────
+    const entries: LogEntry[] = [{id:uid(),type:'separator',text:`── Round ${round} ──`}];
 
     if (r.playerActed) {
       if (pAct==='attack') {
-        const sNote = r.aShieldAbsorb > 0 ? ` (shield âˆ’${r.aShieldAbsorb})` : ` (passive ${r.pass_a})`;
+        const sNote = r.aShieldAbsorb > 0 ? ` (shield −${r.aShieldAbsorb})` : ` (passive ${r.pass_a})`;
         entries.push({id:uid(),type:r.pCrit?'critical':'hit',who:'player',
-          text:`${ac.icon} ${pMove}: roll ${pRoll}+${curP.final.strength}${r.pCrit?'+3ðŸŽ¯':''}${bonusAttackRoll>0?`+${bonusAttackRoll}âš¡`:''}=${pRoll+curP.final.strength+(r.pCrit?3:0)+bonusAttackRoll}${sNote} â†’ ${r.pDmg} dmg`});
+          text:`${ac.icon} ${pMove}: roll ${pRoll}+${curP.final.strength}${r.pCrit?'+3🎯':''}${bonusAttackRoll>0?`+${bonusAttackRoll}⚡`:''}=${pRoll+curP.final.strength+(r.pCrit?3:0)+bonusAttackRoll}${sNote} → ${r.pDmg} dmg`});
       } else if (pAct==='defend') {
         entries.push({id:uid(),type:'block',who:'player',
-          text:`ðŸ›¡ï¸ ${pMove}: +${r.pShieldGain} shield (${curP.final.stamina} DEF + roll ${pRoll})`});
+          text:`🛡️ ${pMove}: +${r.pShieldGain} shield (${curP.final.stamina} DEF + roll ${pRoll})`});
       } else {
         entries.push({id:uid(),type:'heal',who:'player',
-          text:`ðŸ§ª ${pMove}: +${r.pHeal} HP (roll ${pRoll} Â· ${Math.round((0.30+0.10*pRoll)*100)}% of max)`});
+          text:`🧪 ${pMove}: +${r.pHeal} HP (roll ${pRoll} · ${Math.round((0.30+0.10*pRoll)*100)}% of max)`});
       }
     }
 
     if (r.aiActed) {
       if (aAct==='attack') {
-        const sNote = r.pShieldAbsorb > 0 ? ` (shield âˆ’${r.pShieldAbsorb})` : ` (passive ${r.pass_p})`;
+        const sNote = r.pShieldAbsorb > 0 ? ` (shield −${r.pShieldAbsorb})` : ` (passive ${r.pass_p})`;
         entries.push({id:uid(),type:r.aCrit?'critical':'hit',who:'ai',
-          text:`${aac.icon} ${aMove}: roll ${aRoll}+${curA.final.strength}${r.aCrit?'+3ðŸŽ¯':''}=${aRoll+curA.final.strength+(r.aCrit?3:0)}${sNote} â†’ ${r.aDmg} dmg`});
+          text:`${aac.icon} ${aMove}: roll ${aRoll}+${curA.final.strength}${r.aCrit?'+3🎯':''}=${aRoll+curA.final.strength+(r.aCrit?3:0)}${sNote} → ${r.aDmg} dmg`});
       } else if (aAct==='defend') {
         entries.push({id:uid(),type:'block',who:'ai',
-          text:`ðŸ›¡ï¸ ${curA.name} ${aMove}: DEF ${curA.final.stamina}+${aRoll}â†’${r.aNewStamina} Â· shield restored ${r.aNewStamina}/${r.aNewStamina}`});
+          text:`🛡️ ${curA.name} ${aMove}: DEF ${curA.final.stamina}+${aRoll}→${r.aNewStamina} · shield restored ${r.aNewStamina}/${r.aNewStamina}`});
       } else {
         entries.push({id:uid(),type:'heal',who:'ai',
-          text:`ðŸ§ª ${curA.name} ${aMove}: +${r.aHeal} HP (roll ${aRoll} Â· ${Math.round((0.30+0.10*aRoll)*100)}% of max)`});
+          text:`🧪 ${curA.name} ${aMove}: +${r.aHeal} HP (roll ${aRoll} · ${Math.round((0.30+0.10*aRoll)*100)}% of max)`});
       }
     }
     if (r.aiDefeated||r.playerDefeated)
-      entries.push({id:uid(),type:'info',text:r.aiDefeated?`ðŸ† ${curA.name} defeated! Victory!`:`ðŸ’€ ${curP.name} falls! ${aac.icon} ${curA.name} wins.`});
+      entries.push({id:uid(),type:'info',text:r.aiDefeated?`🏆 ${curA.name} defeated! Victory!`:`💀 ${curP.name} falls! ${aac.icon} ${curA.name} wins.`});
 
-    // â”€â”€ Record this round â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Record this round ─────────────────────────────────────────────────────
     roundsRef.current.push({
       r: round, first: goesFirst,
       p_act: pAct, p_roll: pRoll, ai_act: aAct, ai_roll: aRoll,
@@ -523,14 +523,14 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
       p_dmg: r.pDmg, ai_dmg: r.aDmg, p_crit: r.pCrit, ai_crit: r.aCrit,
     });
 
-    // â”€â”€ Animation â€” no text narration; the cards, bars, and floating numbers
+    // ── Animation — no text narration; the cards, bars, and floating numbers
     //    tell the story. Defend shields rise at announcement time, before
     //    either attack lands, so the bars match what the damage math used.
     if (aAct === 'defend') setAiShield(r.aNewStamina);
     if (pAct === 'defend') setPlayerShield(curPS + r.pShieldGain);
 
     // Helper: apply player's action visually. The opponent only flashes as
-    // "hit" on an attack â€” heals and defends animate on the actor's own card.
+    // "hit" on an attack — heals and defends animate on the actor's own card.
     const showPlayerHit = () => {
       if (pAct==='attack') {
         setAnimStep('a-hit');
@@ -541,8 +541,8 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
         setFloatDmg({val:-r.pHeal,color:'#4ade80',side:'player',id:uid()});
         setPlayer(p=>p?{...p,hp:r.pHpAfterPlayerAct}:p);
       } else {
-        // shield bar already raised at announcement â€” float the gain
-        setFloatDmg({val:0,label:`ðŸ›¡ï¸ +${r.pShieldGain}`,color:'#93c5fd',side:'player',id:uid()});
+        // shield bar already raised at announcement — float the gain
+        setFloatDmg({val:0,label:`🛡️ +${r.pShieldGain}`,color:'#93c5fd',side:'player',id:uid()});
       }
     };
 
@@ -557,13 +557,13 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
         setFloatDmg({val:-r.aHeal,color:'#4ade80',side:'ai',id:uid()});
         setAI(p=>p?{...p,hp:r.aHpAfterAiAct}:p);
       } else {
-        // shield bar already raised at announcement â€” float the DEF gain
-        setFloatDmg({val:0,label:`ðŸ›¡ï¸ +${aRoll}`,color:'#93c5fd',side:'ai',id:uid()});
+        // shield bar already raised at announcement — float the DEF gain
+        setFloatDmg({val:0,label:`🛡️ +${aRoll}`,color:'#93c5fd',side:'ai',id:uid()});
       }
     };
 
     if (goesFirst === 'ai') {
-      // â”€â”€ AI goes first (a-act â†’ p-hit â†’ p-act â†’ a-hit) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── AI goes first (a-act → p-hit → p-act → a-hit) ────────────────────────
       setAnimStep('a-act');
 
       schedule(() => {
@@ -580,7 +580,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
         }, 1000);
       }, 500);
     } else {
-      // â”€â”€ Player goes first (p-act â†’ a-hit â†’ a-act â†’ p-hit) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Player goes first (p-act → a-hit → a-act → p-hit) ───────────────────
       setAnimStep('p-act');
 
       schedule(() => {
@@ -606,7 +606,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
       setWinner(rWinner);
       if (rWinner === 'player') {
         setStreak(p => p + 1);
-        // Victory screen doubles as the perk pick â€” roll the offers now, and
+        // Victory screen doubles as the perk pick — roll the offers now, and
         // submit the stage score immediately so it counts even if the player
         // closes the modal here
         setPerkChoices(rollPerkChoices());
@@ -641,7 +641,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
           awardBattleXp(scannedCritterId, meta.stage, meta.isBoss).then(result => {
             if (!result || result.new_xp == null || result.new_level == null) return;
             // Show the server's actual XP delta rather than re-deriving the
-            // formula client-side â€” the two can never disagree this way
+            // formula client-side — the two can never disagree this way
             const gained = Math.max(0, result.new_xp - playerXp);
             setPlayerXp(result.new_xp);
             setPlayerLevel(result.new_level);
@@ -664,15 +664,15 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     const newStage = stage + 1;
     const bossStage = newStage % 3 === 0;
     const aF = await buildOpponent(newStage + deathCount, bossStage);
-    const bossTag = bossStage ? ' ðŸ‘‘ BOSS' : '';
-    // HP and heal count carry over â€” no restoration between stages
+    const bossTag = bossStage ? ' 👑 BOSS' : '';
+    // HP and heal count carry over — no restoration between stages
     startStage({
       stageNum: newStage, deaths: deathCount, boss: bossStage, pFighter: curPlayer, aFighter: aF,
       run: { maxHeals: maxPlayerHeals, bonusAtk: bonusAttackRoll, bonusPass: bonusPassive },
       logLines: [
-        {id:uid(),type:'info',text:`âš”ï¸  Stage ${newStage}${bossTag} â€” ${aF.name} enters!`},
-        {id:uid(),type:'info',text:`${aF.name} â€” STR ${aF.final.strength} Â· â¤ï¸ ${aF.maxHp} HP Â· ðŸ›¡ï¸ ${aF.final.stamina} shield${aF.bossBoostStat ? ` (+5 ${aF.bossBoostStat})` : ''}`},
-        {id:uid(),type:'info',text:`âš ï¸ HP carries over: ${curPlayer.hp}/${curPlayer.maxHp} Â· ðŸ›¡ï¸ ${curPlayer.final.stamina} shield restored`},
+        {id:uid(),type:'info',text:`⚔️  Stage ${newStage}${bossTag} — ${aF.name} enters!`},
+        {id:uid(),type:'info',text:`${aF.name} — STR ${aF.final.strength} · ❤️ ${aF.maxHp} HP · 🛡️ ${aF.final.stamina} shield${aF.bossBoostStat ? ` (+5 ${aF.bossBoostStat})` : ''}`},
+        {id:uid(),type:'info',text:`⚠️ HP carries over: ${curPlayer.hp}/${curPlayer.maxHp} · 🛡️ ${curPlayer.final.stamina} shield restored`},
       ],
     });
   });
@@ -681,7 +681,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
   const handleBonfireRestart = () => beginMatch(async () => {
     if (!player) return;
     const newDeathCount = deathCount + 1;
-    // Bonfires are always at stage â‰¡ 1 mod 3, so never a boss â€” kept for safety
+    // Bonfires are always at stage ≡ 1 mod 3, so never a boss — kept for safety
     const bossStage = bonfireStage % 3 === 0;
     const aF = await buildOpponent(bonfireStage + newDeathCount, bossStage);
 
@@ -689,22 +689,22 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     const restoredPlayer: Fighter = { ...player, hp: player.maxHp };
     setDeathCount(newDeathCount);
     setPlayer(restoredPlayer);
-    // playerHeals intentionally NOT reset â€” remaining heals carry over from death
+    // playerHeals intentionally NOT reset — remaining heals carry over from death
 
-    const bossTag = bossStage ? ' ðŸ‘‘ BOSS' : '';
+    const bossTag = bossStage ? ' 👑 BOSS' : '';
     startStage({
       stageNum: bonfireStage, deaths: newDeathCount, boss: bossStage, pFighter: restoredPlayer, aFighter: aF,
       run: { maxHeals: maxPlayerHeals, bonusAtk: bonusAttackRoll, bonusPass: bonusPassive },
       logLines: [
-        { id: uid(), type: 'info', text: `ðŸ”¥ Bonfire â€” ${restoredPlayer.name} rises at Stage ${bonfireStage}` },
-        { id: uid(), type: 'info', text: `HP restored to ${restoredPlayer.maxHp} Â· STR ${restoredPlayer.final.strength} Â· DEF ${restoredPlayer.final.stamina} Â· ðŸ§ª ${healsLeft}/${maxPlayerHeals} heals` },
-        { id: uid(), type: 'info', text: `âš ï¸ Enemies are +${newDeathCount} level${newDeathCount !== 1 ? 's' : ''} harder` },
-        { id: uid(), type: 'info', text: `âš”ï¸  Stage ${bonfireStage}${bossTag} â€” ${aF.name} enters!` },
+        { id: uid(), type: 'info', text: `🔥 Bonfire — ${restoredPlayer.name} rises at Stage ${bonfireStage}` },
+        { id: uid(), type: 'info', text: `HP restored to ${restoredPlayer.maxHp} · STR ${restoredPlayer.final.strength} · DEF ${restoredPlayer.final.stamina} · 🧪 ${healsLeft}/${maxPlayerHeals} heals` },
+        { id: uid(), type: 'info', text: `⚠️ Enemies are +${newDeathCount} level${newDeathCount !== 1 ? 's' : ''} harder` },
+        { id: uid(), type: 'info', text: `⚔️  Stage ${bonfireStage}${bossTag} — ${aF.name} enters!` },
       ],
     });
   });
 
-  // â”€â”€ QR scan: fetch critter from Supabase â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── QR scan: fetch critter from Supabase ───────────────────────────────────
   const handleScanLoad = async (overrideId?: string) => {
     const id = (overrideId ?? scanId).trim().toUpperCase();
     if (!id) { setScanError('No critter ID found.'); return; }
@@ -714,7 +714,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     if (!ok) setScanError('Critter not found. Check your ID and try again.');
   };
 
-  // Profile screen â†’ battle prep: fresh dice and fresh allegiance/guild picks
+  // Profile screen → battle prep: fresh dice and fresh allegiance/guild picks
   const handleStartBattlePrep = () => {
     setAllocDice([]); setAssigns([null, null, null]); setSelDie(null); setAllocSettled(false);
     setAlignChosen(false); setGuildChosen(false);
@@ -722,7 +722,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
   };
 
   // Rekindle anew: full restart back at the allegiance/guild screen, keeping
-  // the same scanned critter, alignment, and guild â€” but losing all run gains
+  // the same scanned critter, alignment, and guild — but losing all run gains
   // (stage progress, dice allocations, perks, heals, etc).
   const handleRekindleAnew = () => {
     setAllocDice([]); setAssigns([null,null,null]); setSelDie(null); setAllocSettled(false);
@@ -737,7 +737,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     setPhase('scan-setup');
   };
 
-  // â”€â”€ Between-stage heal (on perk screen) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Between-stage heal (on perk screen) ────────────────────────────────────
   const handlePerkHeal = () => {
     if (!player || healsLeft <= 0) return;
     const healAmt = Math.round(player.maxHp * 0.5);
@@ -745,7 +745,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     setPlayerHeals(h => h + 1);
   };
 
-  // â”€â”€ Perk flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Perk flow ───────────────────────────────────────────────────────────────
   const applyPerkAndContinue = (perkId: string) => {
     if (matchingRef.current) return;   // already matchmaking the next stage
     let updatedPlayer = player ? { ...player } : null;
@@ -792,12 +792,12 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
     handleNextBattle(updatedPlayer ?? undefined);
   };
 
-  // â”€â”€â”€ Derived values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Derived values ──────────────────────────────────────────────────────────
   // Bonfire = stage immediately after the last defeated boss (boss stages = multiples of 3)
   const bonfireStage = Math.max(1, Math.floor((stage - 1) / 3) * 3 + 1);
   const healsLeft    = Math.max(0, maxPlayerHeals - playerHeals);
 
-  // â”€â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="bg-overlay" onClick={phase === 'battle' || phase === 'result' ? undefined : onClose}>
       <div className="bg-modal"
@@ -809,7 +809,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
           } else {
             onClose();
           }
-        }}>âœ•</button>
+        }}>✕</button>
 
         <div className="bg-modal-scroll">
 
@@ -817,13 +817,13 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
         {phase==='battle' && (
           <div className="bg-round-badge">
             <span className="bg-badge-rnd">Rnd {round}</span>
-            <span className="bg-badge-dot">Â·</span>
+            <span className="bg-badge-dot">·</span>
             <span className="bg-badge-stg">Stage {stage}{deathCount>0&&<span className="bg-badge-penalty">+{deathCount}</span>}</span>
-            {isBoss && <span className="bg-badge-boss">ðŸ‘‘ BOSS</span>}
+            {isBoss && <span className="bg-badge-boss">👑 BOSS</span>}
           </div>
         )}
 
-        {/* â”€â”€ STEP 0: Mode chooser â€” scan only â”€â”€ */}
+        {/* ── STEP 0: Mode chooser — scan only ── */}
         {phase==='mode' && (
           <div className="bg-panel">
             <p className="bg-eyebrow">Arena</p>
@@ -831,7 +831,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
             <p className="bg-sub">Scan your critter card to battle.</p>
             <div className="bg-mode-row">
               <button className="bg-mode-btn bg-mode-btn--scan" onClick={()=>setPhase('scan')}>
-                <span className="bgm-icon">ðŸ“·</span>
+                <span className="bgm-icon">📷</span>
                 <span className="bgm-title">Scan Your Critter</span>
                 <span className="bgm-desc">Use the QR code on your physical card</span>
               </button>
@@ -839,14 +839,14 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
           </div>
         )}
 
-        {/* â”€â”€ SCAN: Live camera QR scanner â”€â”€ */}
+        {/* ── SCAN: Live camera QR scanner ── */}
         {phase==='scan' && (
           <div className="bg-panel">
             <p className="bg-eyebrow">Arena</p>
             <h2 className="bg-title">{scanLoading ? 'Your Critter' : 'Scan Your Card'}</h2>
 
             {scanLoading ? (
-              <p className="bg-sub" style={{textAlign:'center',padding:'2rem 0'}}>â³ Summoning your critterâ€¦</p>
+              <p className="bg-sub" style={{textAlign:'center',padding:'2rem 0'}}>⏳ Summoning your critter…</p>
             ) : (
               <QrScanner
                 onScan={(id) => {
@@ -859,14 +859,14 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
 
             {scanError && <p className="bg-scan-error">{scanError}</p>}
 
-            <button className="bg-back-btn" onClick={()=>{ setScanError(null); setPhase('mode'); }}>â† Back</button>
+            <button className="bg-back-btn" onClick={()=>{ setScanError(null); setPhase('mode'); }}>← Back</button>
           </div>
         )}
 
-        {/* â”€â”€ PROFILE: critter overview after scan / rekindle â”€â”€ */}
+        {/* ── PROFILE: critter overview after scan / rekindle ── */}
         {phase==='scan-setup' && (
           <div className="bg-panel">
-            <p className="bg-eyebrow">Your Critter Â· {rarity[0].toUpperCase()+rarity.slice(1)}</p>
+            <p className="bg-eyebrow">Your Critter · {rarity[0].toUpperCase()+rarity.slice(1)}</p>
             <h2 className="bg-title" style={{color:rarityColor[rarity]}}>{playerName}</h2>
 
             {critterPhoto && (
@@ -882,7 +882,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
               return (
                 <div className="bg-level-row">
                   <span className="bg-level-badge" style={{borderColor:rarityColor[rarity],color:rarityColor[rarity]}}>
-                    ðŸ… Level {playerLevel}
+                    🏅 Level {playerLevel}
                   </span>
                   <div className="bg-xp-track">
                     <div className="bg-xp-fill" style={{width:`${pct}%`,background:rarityColor[rarity]}} />
@@ -895,7 +895,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
             {idleNote && <p className="bg-idle-note">{idleNote}</p>}
 
             <div className="bg-stat-summary">
-              {([['âš”ï¸','STR','strength'],['â¤ï¸','HP','health'],['ðŸ›¡ï¸','DEF','stamina']] as [string,string,StatKey][]).map(([icon,lbl,k])=>(
+              {([['⚔️','STR','strength'],['❤️','HP','health'],['🛡️','DEF','stamina']] as [string,string,StatKey][]).map(([icon,lbl,k])=>(
                 <div key={lbl} className="bg-stat-summary-chip" style={{borderColor:rarityColor[rarity]}}>
                   <span>{icon}</span>
                   <span className="bg-ssc-lbl">{lbl}</span>
@@ -907,12 +907,12 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
 
             <button className="bg-cta" onClick={handleStartBattlePrep}
               style={{borderColor:rarityColor[rarity],color:rarityColor[rarity]}}>
-              âš”ï¸ Start Battle
+              ⚔️ Start Battle
             </button>
           </div>
         )}
 
-        {/* â”€â”€ REAL SETUP: Alignment + Rank + Guild â”€â”€ */}
+        {/* ── REAL SETUP: Alignment + Rank + Guild ── */}
         {phase==='real-setup' && (
           <div className="bg-panel">
             <p className="bg-eyebrow">Your Card</p>
@@ -944,7 +944,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                     style={active?{borderColor:rarityColor[r],boxShadow:`0 0 14px ${rarityGlow[r]}`}:{}}>
                     <span className="bdb-icon">{DIFFICULTY_CFG[r].icon}</span>
                     <span className="bdb-rarity" style={active?{color:rarityColor[r]}:{}}>{r[0].toUpperCase()+r.slice(1)}</span>
-                    <span className="bdb-diff">Stats {RANK_RANGE[r][0]}â€“{RANK_RANGE[r][1]}</span>
+                    <span className="bdb-diff">Stats {RANK_RANGE[r][0]}–{RANK_RANGE[r][1]}</span>
                   </button>
                 );
               })}
@@ -967,45 +967,45 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
 
             <button className="bg-cta" onClick={handleRealSetupContinue}
               style={{borderColor:ac.color,color:ac.color}}>
-              Continue â†’
+              Continue →
             </button>
           </div>
         )}
 
-        {/* â”€â”€ REAL STATS: Name + stat steppers â”€â”€ */}
+        {/* ── REAL STATS: Name + stat steppers ── */}
         {phase==='real-stats' && (
           <div className="bg-panel">
-            <p className="bg-eyebrow">Your Card Â· {GUILD_ICONS[guild]} {guild[0].toUpperCase()+guild.slice(1)}</p>
+            <p className="bg-eyebrow">Your Card · {GUILD_ICONS[guild]} {guild[0].toUpperCase()+guild.slice(1)}</p>
             <h2 className="bg-title">Enter Your Stats</h2>
             <p className="bg-sub" style={{fontSize:'0.8rem'}}>
-              Enter your card's stats (0â€“9). Roll dice next to add bonus points.
+              Enter your card's stats (0–9). Roll dice next to add bonus points.
             </p>
 
             <div className="bg-name-row">
               <input
                 className="bg-name-input"
                 type="text"
-                placeholder="Critter nameâ€¦"
+                placeholder="Critter name…"
                 value={playerName}
                 onChange={e=>setPlayerName(e.target.value)}
                 maxLength={24}
               />
               <button className="bg-cta bg-cta--ghost" onClick={handleGenerateName} style={{whiteSpace:'nowrap'}}>
-                ðŸŽ² Generate
+                🎲 Generate
               </button>
             </div>
 
             <div className="bg-stat-inputs">
               {([
-                ['strength','âš”ï¸','Strength'],
-                ['health',  'â¤ï¸','Health'  ],
-                ['stamina', 'ðŸ›¡ï¸','Defense' ],
+                ['strength','⚔️','Strength'],
+                ['health',  '❤️','Health'  ],
+                ['stamina', '🛡️','Defense' ],
               ] as [StatKey,string,string][]).map(([k,icon,name])=>(
                 <div key={k} className="bg-stat-row">
                   <span className="bg-stat-icon">{icon}</span>
                   <span className="bg-stat-name">{name}</span>
                   <div className="bg-stat-ctrl">
-                    <button onClick={()=>handleRealStat(k,-1)} disabled={base[k]<=0}>âˆ’</button>
+                    <button onClick={()=>handleRealStat(k,-1)} disabled={base[k]<=0}>−</button>
                     <span>{base[k]}</span>
                     <button onClick={()=>handleRealStat(k, 1)} disabled={base[k]>=9}>+</button>
                   </div>
@@ -1020,12 +1020,12 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
 
             <button className="bg-cta" onClick={handleRealProceedToRolling}
               style={{borderColor:ac.color,color:ac.color}}>
-              ðŸŽ² Roll Dice â†’
+              🎲 Roll Dice →
             </button>
           </div>
         )}
 
-        {/* â”€â”€ STEP 1 + 2: Select alignment + difficulty â”€â”€ */}
+        {/* ── STEP 1 + 2: Select alignment + difficulty ── */}
         {phase==='setup' && (
           <div className="bg-panel">
             <p className="bg-eyebrow">Arena</p>
@@ -1080,15 +1080,15 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
             </div>
 
             <button className="bg-cta" onClick={handleStartEnchant} style={{borderColor:ac.color,color:ac.color}}>
-              âœ¨ Enchant Animal â†’
+              ✨ Enchant Animal →
             </button>
           </div>
         )}
 
-        {/* â”€â”€ STEP 3+4+5: Roll dice & assign â€” combined screen â”€â”€ */}
+        {/* ── STEP 3+4+5: Roll dice & assign — combined screen ── */}
         {(phase==='rolling' || phase==='allocating') && (
           <div className="bg-panel">
-            {/* Name â€” locked to the scanned critter's name; editable only for legacy generated mode */}
+            {/* Name — locked to the scanned critter's name; editable only for legacy generated mode */}
             <div className="bg-name-row">
               {scannedCritterId ? (
                 <div className="bg-name-display">{playerName || 'Your Critter'}</div>
@@ -1097,7 +1097,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                   <input
                     className="bg-name-input"
                     type="text"
-                    placeholder="Critter nameâ€¦"
+                    placeholder="Critter name…"
                     value={playerName}
                     onChange={e=>setPlayerName(e.target.value)}
                     maxLength={24}
@@ -1106,7 +1106,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                     <button className="bg-cta bg-cta--ghost"
                       onClick={()=>setPlayerName(pick(GUILD_NAMES[guild]))}
                       style={{whiteSpace:'nowrap'}}>
-                      ðŸŽ² Rename
+                      🎲 Rename
                     </button>
                   )}
                 </>
@@ -1116,7 +1116,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
             {/* Rarity below the name */}
             <p className="bg-roll-rarity" style={{color:rc}}>{rarity[0].toUpperCase()+rarity.slice(1)}</p>
 
-            {/* Allegiance â€” must be picked before the dice unlock */}
+            {/* Allegiance — must be picked before the dice unlock */}
             <div className="bg-section-lbl">Choose Your Allegiance</div>
             <div className="bg-align-row">
               {(['good','evil'] as Alignment[]).map(a=>{
@@ -1149,29 +1149,29 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
               })}
             </div>
 
-            {/* Name builder â€” adjective + critter (generated mode only) */}
+            {/* Name builder — adjective + critter (generated mode only) */}
             {critterMode === 'generated' && (
               <div className="bg-name-builder">
                 {/* Attribute card */}
                 <div className="bg-nb-card">
                   <span className="bg-nbc-label">Attribute</span>
-                  <span className="bg-nbc-word" style={{color:ac.color}}>{selectedAdj?.word ?? 'â€”'}</span>
+                  <span className="bg-nbc-word" style={{color:ac.color}}>{selectedAdj?.word ?? '—'}</span>
                   <span className="bg-nbc-bonus">{selectedAdj?.bonusLabel ?? ''}</span>
                   <button className="bg-nbc-reroll"
                     disabled={adjRollsLeft <= 0}
                     onClick={handleRerollAdj}>
-                    ðŸŽ² {adjRollsLeft > 0 ? `Reroll (${adjRollsLeft})` : 'Used up'}
+                    🎲 {adjRollsLeft > 0 ? `Reroll (${adjRollsLeft})` : 'Used up'}
                   </button>
                 </div>
                 {/* Critter card */}
                 <div className="bg-nb-card">
                   <span className="bg-nbc-label">Critter</span>
-                  <span className="bg-nbc-word" style={{color:ac.color}}>{selectedCritter?.word ?? 'â€”'}</span>
+                  <span className="bg-nbc-word" style={{color:ac.color}}>{selectedCritter?.word ?? '—'}</span>
                   <span className="bg-nbc-bonus">{selectedCritter?.bonusLabel ?? ''}</span>
                   <button className="bg-nbc-reroll"
                     disabled={critterRollsLeft <= 0}
                     onClick={handleRerollCritter}>
-                    ðŸŽ² {critterRollsLeft > 0 ? `Reroll (${critterRollsLeft})` : 'Used up'}
+                    🎲 {critterRollsLeft > 0 ? `Reroll (${critterRollsLeft})` : 'Used up'}
                   </button>
                 </div>
               </div>
@@ -1179,13 +1179,13 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
 
             <p className="bg-sub" style={{fontSize:'0.82rem'}}>
               {allocRolling
-                ? 'Rollingâ€¦'
+                ? 'Rolling…'
                 : allocDice.length===0
                 ? (!alignChosen || !guildChosen
                     ? 'Pick your allegiance and guild to unlock the dice'
-                    : 'ðŸŽ² Roll the dice!')
+                    : '🎲 Roll the dice!')
                 : allAssigned
-                ? 'âš”ï¸ Ready â€” press Begin Battle'
+                ? '⚔️ Ready — press Begin Battle'
                 : 'Click dice to add to stat'}
             </p>
 
@@ -1211,7 +1211,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                     {assigns[i]!==null && (
                       <button className="bg-die-clear" onClick={()=>clearAssign(i)}
                         title={`Remove ${assigns[i]} assignment`}>
-                        {({strength:'âš”ï¸',health:'â¤ï¸',stamina:'ðŸ›¡ï¸'} as Record<StatKey,string>)[assigns[i]!]} Ã—
+                        {({strength:'⚔️',health:'❤️',stamina:'🛡️'} as Record<StatKey,string>)[assigns[i]!]} ×
                       </button>
                     )}
                   </div>
@@ -1219,19 +1219,19 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
               )}
             </div>
 
-            {/* Roll button â€” unlocks once allegiance + guild are chosen */}
+            {/* Roll button — unlocks once allegiance + guild are chosen */}
             {allocDice.length===0 && !allocRolling && (
               <button className="bg-cta" onClick={handleAllocRoll}
                 disabled={!alignChosen || !guildChosen}
                 style={{borderColor:ac.color,color:ac.color,opacity:alignChosen&&guildChosen?1:0.4}}>
-                ðŸŽ² Roll Dice
+                🎲 Roll Dice
               </button>
             )}
 
-            {/* Stat assignment â€” visible always; active once dice are rolled and a die is selected */}
+            {/* Stat assignment — visible always; active once dice are rolled and a die is selected */}
             <div className="bg-alloc-stats">
               {(['strength','health','stamina'] as StatKey[]).map(k=>{
-                const icons:Record<StatKey,string>={strength:'âš”ï¸',health:'â¤ï¸',stamina:'ðŸ›¡ï¸'};
+                const icons:Record<StatKey,string>={strength:'⚔️',health:'❤️',stamina:'🛡️'};
                 const names:Record<StatKey,string>={strength:'Strength',health:'Health',stamina:'Defense'};
                 const diceBonus = assigns.reduce((s,a,i)=>a===k?s+allocDice[i]:s,0);
                 const nameBonus = critterMode==='generated'
@@ -1242,13 +1242,13 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                 return (
                   <button key={k} onClick={()=>handleAssign(k)} disabled={!ready}
                     className={`bg-alloc-btn ${ready?'bg-alloc-btn--ready':''}`}>
-                    <span className={`bab-add${ready?' bab-add--on':''}`} aria-hidden="true">ï¼‹</span>
+                    <span className={`bab-add${ready?' bab-add--on':''}`} aria-hidden="true">＋</span>
                     <span>{icons[k]}</span>
                     <span className="bab-name">{names[k]}</span>
                     <span className="bab-val">
                       {base[k]}
-                      {levelBonus>0&&<span className="bab-plus bab-plus--name"> +{levelBonus}ðŸ…</span>}
-                      {nameBonus>0&&<span className="bab-plus bab-plus--name"> +{nameBonus}âœ¨</span>}
+                      {levelBonus>0&&<span className="bab-plus bab-plus--name"> +{levelBonus}🏅</span>}
+                      {nameBonus>0&&<span className="bab-plus bab-plus--name"> +{nameBonus}✨</span>}
                       {diceBonus>0&&<span className="bab-plus"> +{diceBonus}</span>}
                       {(nameBonus+diceBonus+levelBonus)>0&&<> = <strong>{total}</strong></>}
                     </span>
@@ -1261,25 +1261,25 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
               <div className="bg-alloc-footer">
                 <button className="bg-cta bg-cta--ghost" onClick={resetAssigns}
                   disabled={assigns.every(a=>a===null)}>
-                  â†º Reset Dice
+                  ↺ Reset Dice
                 </button>
                 <button className="bg-cta" onClick={handleBeginBattle} disabled={!allAssigned || matchLoading}
                   style={{borderColor:ac.color,color:ac.color,opacity:allAssigned&&!matchLoading?1:0.4}}>
-                  {matchLoading ? 'â³ Summoning rivalâ€¦' : 'âš”ï¸ Begin Battle'}
+                  {matchLoading ? '⏳ Summoning rival…' : '⚔️ Begin Battle'}
                 </button>
               </div>
             )}
           </div>
         )}
 
-        {/* â”€â”€ BATTLE â”€â”€ */}
+        {/* ── BATTLE ── */}
         {phase==='battle' && player && ai && (
           <div className="bg-arena">
             {/* Rival on top */}
             <FighterCard fighter={ai} label="Rival" animStep={animStep} side="ai" floatDmg={floatDmg} shield={aiShield} shieldMax={aiShieldMax}
               healsLeft={Math.max(0, 1 - aiHeals)} canDefend={!aiDefended}/>
 
-            {/* Dice face-off â€” you left, rival right. Halo + connector line in
+            {/* Dice face-off — you left, rival right. Halo + connector line in
                 each side's color tie the die to its fighter card; the center
                 spinner/arrow decides and shows who acts first. */}
             <div className="bg-mid-dice">
@@ -1298,7 +1298,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                   : turnFirst !== null ? (
                       <span className="bg-mid-arrow"
                         style={{color: turnFirst==='player' ? ac.color : ALIGN_CFG[ai.alignment].color}}>
-                        {turnFirst==='player' ? 'â—€' : 'â–¶'}
+                        {turnFirst==='player' ? '◀' : '▶'}
                       </span>
                     )
                   : <span className="bg-mid-vs">vs</span>}
@@ -1339,22 +1339,22 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
           </div>
         )}
 
-        {/* â”€â”€ RESULT â”€â”€ */}
+        {/* ── RESULT ── */}
         {phase==='result' && (
           <div className="bg-panel bg-result">
-            <div className="bg-result-icon">{winner==='player'?'ðŸ†':'ðŸ’€'}</div>
+            <div className="bg-result-icon">{winner==='player'?'🏆':'💀'}</div>
             <h2 className={`bg-title ${winner==='player'?'bg-win':'bg-lose'}`}>
               {winner==='player'?'Victory!':'Defeated'}
             </h2>
-            {winner==='player'&&streak>0&&<p className="bg-streak">ðŸ”¥ {streak} win{streak>1?'s':''} in a row</p>}
+            {winner==='player'&&streak>0&&<p className="bg-streak">🔥 {streak} win{streak>1?'s':''} in a row</p>}
             {winner==='player' && xpAward && (
               <div className="bg-xp-award">
-                <p className="bg-xp-gain">âœ¨ +{Math.round(xpAward.xp)} XP</p>
+                <p className="bg-xp-gain">✨ +{Math.round(xpAward.xp)} XP</p>
                 {xpAward.leveledUp && (
                   <p className="bg-level-up">
-                    ðŸ… Level Up! Now Level {xpAward.level}
+                    🏅 Level Up! Now Level {xpAward.level}
                     {xpAward.stat && (
-                      <> â€” +1 {({strength:'âš”ï¸',health:'â¤ï¸',stamina:'ðŸ›¡ï¸'} as Record<StatKey,string>)[xpAward.stat]} {xpAward.stat[0].toUpperCase()+xpAward.stat.slice(1)}</>
+                      <> — +1 {({strength:'⚔️',health:'❤️',stamina:'🛡️'} as Record<StatKey,string>)[xpAward.stat]} {xpAward.stat[0].toUpperCase()+xpAward.stat.slice(1)}</>
                     )}
                   </p>
                 )}
@@ -1378,11 +1378,11 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                 {healsLeft > 0 && (
                   <button className="bg-perk-heal" onClick={handlePerkHeal} disabled={matchLoading}>
                     <PotionStack count={healsLeft}/>
-                    Use a Heal â€” restore {Math.round(player.maxHp * 0.5)} HP
+                    Use a Heal — restore {Math.round(player.maxHp * 0.5)} HP
                   </button>
                 )}
                 <p className="bg-sub" style={{fontSize:'0.78rem',marginTop:'0.5rem'}}>
-                  HP: {player.hp}/{player.maxHp} Â· {healsLeft > 0 ? `ðŸ§ª ${healsLeft} heal${healsLeft>1?'s':''} available` : 'No heals left'}
+                  HP: {player.hp}/{player.maxHp} · {healsLeft > 0 ? `🧪 ${healsLeft} heal${healsLeft>1?'s':''} available` : 'No heals left'}
                 </p>
               </>
             ) : player && (
@@ -1390,14 +1390,14 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                 <p className="bg-sub">{player.name} has fallen at Stage {stage}.</p>
                 <div className="bg-bonfire-preview">
                   <div className="bg-bfp-row">
-                    <span>ðŸ”¥ Bonfire Â· <strong>Stage {bonfireStage}</strong></span>
-                    <span>âš ï¸ Enemies <strong>+{deathCount+1} lvl</strong> on restart</span>
+                    <span>🔥 Bonfire · <strong>Stage {bonfireStage}</strong></span>
+                    <span>⚠️ Enemies <strong>+{deathCount+1} lvl</strong> on restart</span>
                   </div>
                   <div className="bg-bfp-stats">
-                    <span title="Strength">âš”ï¸ {player.final.strength}</span>
-                    <span title="Health">â¤ï¸ {player.final.health}</span>
-                    <span title="Defense">ðŸ›¡ï¸ {player.final.stamina}</span>
-                    <span title="Heals remaining">ðŸ§ª {healsLeft}/{maxPlayerHeals}</span>
+                    <span title="Strength">⚔️ {player.final.strength}</span>
+                    <span title="Health">❤️ {player.final.health}</span>
+                    <span title="Defense">🛡️ {player.final.stamina}</span>
+                    <span title="Heals remaining">🧪 {healsLeft}/{maxPlayerHeals}</span>
                   </div>
                 </div>
                 <div className="bg-result-log">
@@ -1408,7 +1408,7 @@ export function BattleGame({ onClose, scannedId }: { onClose:()=>void; scannedId
                 <div className="bg-result-btns">
                   <div className="bg-defeat-options">
                     <button className="bg-cta bg-cta--bonfire" onClick={handleBonfireRestart} disabled={matchLoading}>
-                      {matchLoading ? 'â³ Stoking the flamesâ€¦' : `ðŸ”¥ Return to Bonfire â€” Stage ${bonfireStage}`}
+                      {matchLoading ? '⏳ Stoking the flames…' : `🔥 Return to Bonfire — Stage ${bonfireStage}`}
                     </button>
                     <button className="bg-cta bg-cta--ghost" onClick={handleRekindleAnew}>
                       Rekindle anew
