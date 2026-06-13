@@ -28,9 +28,15 @@ const GUILD_ICONS: Record<string, string> = {
 
 type NavSection = 'home' | 'events' | 'critters';
 
+/** Today's date as 'YYYY-MM-DD' in the visitor's LOCAL timezone (not UTC, so an
+ *  event on its final day doesn't disappear mid-afternoon in Mountain Time). */
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** True if the event hasn't finished yet (multi-day events stay up until their end date) */
-function isUpcoming(event: Event): boolean {
-  const today = new Date().toISOString().slice(0, 10);   // 'YYYY-MM-DD'
+function isUpcoming(event: Event, today: string): boolean {
   return (event.end_date ?? event.start_date) >= today;
 }
 
@@ -39,6 +45,8 @@ function App() {
   const [photoOpen,    setPhotoOpen]   = useState<string | null>(null);
   const [events,       setEvents]      = useState<Event[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError,  setEventsError]  = useState(false);
+  const [eventsReload, setEventsReload] = useState(0);   // bump to refetch
   const [gameOpen,     setGameOpen]    = useState(false);
   const [arenaScannedId, setArenaScannedId] = useState<string | null>(null);
   const [scores,       setScores]      = useState<ScoreData | null>(null);
@@ -55,16 +63,41 @@ function App() {
     }
   }, []);
 
+  // Load events with retry + backoff. A single transient network failure (common
+  // on event-floor connections) used to leave the section blank until a full
+  // reload; now it retries, and a hard failure shows a "retry" prompt instead of
+  // masquerading as "no events".
   useEffect(() => {
-    supabase
-      .from('events')
-      .select('*')
-      .order('start_date', { ascending: true })
-      .then(({ data, error }) => {
-        if (!error && data) setEvents((data as Event[]).filter(isUpcoming));
+    let cancelled = false;
+    setEventsLoading(true);
+    setEventsError(false);
+
+    const attempt = async (tries = 0): Promise<void> => {
+      try {
+        const { data, error } = await supabase
+          .from('events')
+          .select('*')
+          .order('start_date', { ascending: true });
+        if (error) throw error;
+        if (cancelled) return;
+        const today = localToday();
+        setEvents((data as Event[]).filter(e => isUpcoming(e, today)));
         setEventsLoading(false);
-      });
-  }, []);
+      } catch {
+        if (cancelled) return;
+        if (tries < 3) {
+          // 0.6s, 1.2s, 2.4s backoff
+          setTimeout(() => { if (!cancelled) attempt(tries + 1); }, 600 * 2 ** tries);
+          return;
+        }
+        setEventsError(true);
+        setEventsLoading(false);
+      }
+    };
+    attempt();
+
+    return () => { cancelled = true; };
+  }, [eventsReload]);
 
   // Fetch global scores on mount, then refresh every 30 s while the tab is
   // visible. Backgrounded tabs skip the poll and catch up on return.
@@ -194,6 +227,11 @@ function App() {
 
         {eventsLoading ? (
           <p className="cc-events-loading">Summoning the schedule…</p>
+        ) : eventsError ? (
+          <p className="cc-events-loading">
+            Couldn't load the schedule.{' '}
+            <button className="cc-events-retry" onClick={() => setEventsReload(n => n + 1)}>Try again</button>
+          </p>
         ) : events.length === 0 ? (
           <p className="cc-events-loading">No events on the horizon — check back soon.</p>
         ) : (

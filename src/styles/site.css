@@ -817,6 +817,17 @@ body {
   font-style: italic;
   padding: 2rem 0;
 }
+.cc-events-retry {
+  font: inherit;
+  font-style: normal;
+  color: var(--gold);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--gold-dim);
+  cursor: pointer;
+  padding: 0;
+}
+.cc-events-retry:hover { color: var(--gold-light); border-bottom-color: var(--gold); }
 
 .cc-event-grid {
   display: grid;
