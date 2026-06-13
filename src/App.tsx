@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase, formatEventDate, fetchScores, type Event, type ScoreData } from './supabaseClient';
 import { BattleGame } from './BattleGame';
+import { CritterCarousel, type FeaturedCritter } from './CritterCarousel';
 import logo     from '../images/product_images/logo.png';
 import arenaImg from '../images/product_images/arena.png';
 
@@ -50,6 +51,7 @@ function App() {
   const [gameOpen,     setGameOpen]    = useState(false);
   const [arenaScannedId, setArenaScannedId] = useState<string | null>(null);
   const [scores,       setScores]      = useState<ScoreData | null>(null);
+  const [featured,     setFeatured]    = useState<FeaturedCritter[]>([]);
 
   // Auto-open arena if ?arena=ID is in the URL (coming from critter scan page)
   useEffect(() => {
@@ -98,6 +100,27 @@ function App() {
 
     return () => { cancelled = true; };
   }, [eventsReload]);
+
+  // Featured critters: up to 10 that have an uploaded photo, shown in the
+  // carousel. Legendaries lead, then Unique, then Rare. Best-effort — on
+  // failure the section falls back to the bundled photo grid.
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from('critters')
+      .select('id, name, rarity, photo_url')
+      .not('photo_url', 'is', null)
+      .limit(40)
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        const rank: Record<string, number> = { Legendary: 0, Unique: 1, Rare: 2 };
+        const sorted = (data as FeaturedCritter[])
+          .sort((a, b) => (rank[a.rarity] ?? 9) - (rank[b.rarity] ?? 9))
+          .slice(0, 10);
+        setFeatured(sorted);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   // Fetch global scores on mount, then refresh every 30 s while the tab is
   // visible. Backgrounded tabs skip the poll and catch up on return.
@@ -259,14 +282,19 @@ function App() {
           <p className="section-sub">Sourced from the Wyoming wilds. Hand-built, battle-hardened, and ready to clash.</p>
         </div>
 
-        {/* Photo grid — real critter photos */}
-        <div className="photo-grid">
-          {critterPhotos.map((src, i) => (
-            <button key={i} className="photo-tile" onClick={() => setPhotoOpen(src)} aria-label="View critter">
-              <img src={src} alt={`Critter ${i + 1}`} className="photo-tile-img" loading="lazy" decoding="async" />
-            </button>
-          ))}
-        </div>
+        {/* Featured critters from the database (with uploaded photos) — falls
+            back to the bundled photo grid if none are available yet */}
+        {featured.length > 0 ? (
+          <CritterCarousel critters={featured} />
+        ) : (
+          <div className="photo-grid">
+            {critterPhotos.map((src, i) => (
+              <button key={i} className="photo-tile" onClick={() => setPhotoOpen(src)} aria-label="View critter">
+                <img src={src} alt={`Critter ${i + 1}`} className="photo-tile-img" loading="lazy" decoding="async" />
+              </button>
+            ))}
+          </div>
+        )}
 
       </section>
 
